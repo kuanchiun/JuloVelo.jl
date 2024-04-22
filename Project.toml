@@ -1,0 +1,13 @@
+name = "JuloVelo"
+uuid = "fb5b9b97-769b-420c-af3f-35205bf5fcdb"
+authors = ["Kuan-Chiun Tung <tungsega@yahoo.com.tw>"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
