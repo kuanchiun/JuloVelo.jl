@@ -1,0 +1,148 @@
+function filter_gene(data::JuloVeloObject; criteria::AbstractFloat = 0.5)
+    # Check if genes are filter first
+    if ~isnothing(data.bad_correlation_genes)
+        @info "Already filtered genes, do nothing"
+        return data
+    end
+    
+    c = data.c
+    u = data.u
+    s = data.s
+    genes = data.genes
+    datatype = data.datatype
+    
+    #Filter genes using correlation between unspliced and spliced pattern
+    gene_correlation = corspearman.(eachrow(u), eachrow(s)) # Get correlation between u/s
+    
+    pass = gene_correlation .>= criteria # Find genes that have good correlation
+    fail = gene_correlation .< criteria # Find genes that habe bad correlation
+    
+    pass_genes = genes[pass]
+    bad_correlation_genes = genes[fail]
+    u = u[pass, :]
+    s = s[pass, :]
+    if datatype == "multi"
+        c = c[pass, :]
+    end
+    
+    data.temp_u = u
+    data.temp_s = s
+    data.bad_correlation_genes = bad_correlation_genes
+    data.temp_genes = pass_genes
+    if datatype == "multi"
+        data.temp_c = c
+    else
+        data.temp_c = nothing
+    end
+        
+    @info "$(length(data.bad_correlation_genes)) genes are filtered due to low correlation between unspliced and spliced RNA"
+    @info "See .bad_correlation_genes for details"
+    
+    return data
+end
+
+function find_neighbor(X::AbstractArray, neighbor_number::Int, ngenes::Int)
+    # Initialize Array for Nearest Neighbor
+    NN = Array{Int32}(undef, size(X, 2), neighbor_number, ngenes)
+    # Calculate Nearest Neighbor for each cell in each gene
+    for i in 1:ngenes
+        kdTree = KDTree(X[:, :, i])
+        idxs, dists = knn(kdTree, X[:, :, i], neighbor_number + 1, true)
+        NN[:, :, i] = reduce(vcat, transpose.(idxs))[:, 2:end]
+    end
+
+    return NN
+end
+
+function calculate_neighbor_vector(X, ngenes::Int, sample_number::Int, neighbor_number::Int)
+    NN = find_neighbor(X, neighbor_number, ngenes)
+    repeat_idx = transpose(reduce(hcat, [repeat([i], neighbor_number) for i in 1:sample_number]))
+    
+    neighbor_vector = mapreduce(j -> mapreduce(i -> X[:, NN[i, :, j], j] - X[:, repeat_idx[i, :], j], hcat, axes(NN, 1)), hcat, axes(X, 3))
+    neighbor_vector = reshape(neighbor_vector, 2, neighbor_number, :)
+    neighbor_vector = neighbor_vector .+ eps(Float32)
+    
+    return neighbor_vector
+end
+
+function to_device(train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector::AbstractArray; use_gpu = true)
+    if use_gpu
+        use_cuda = CUDA.functional()
+        if use_cuda
+            device = gpu
+            @info "Training on gpu"
+        else
+            device = cpu
+            @info "CUDA is not functional, back to cpu"
+            @info "Training on cpu"
+        end
+    else
+        device = cpu
+        @info "Training on cpu"
+    end
+    
+    train_X = train_X |> device
+    Kinetic = Kinetic |> device
+    train_neighbor_vector = train_neighbor_vector |> device
+    
+    return train_X, Kinetic, train_neighbor_vector
+end
+
+function to_celldancer(data::JuloVeloObject)
+    ncells = data.ncells
+    ngenes = data.train_genes_number
+    train_genes = data.train_genes
+    train_genes_number = data.train_genes_number
+    X = data.X
+    velocity = data.param["velocity"]
+    embedding = data.embedding
+    Kinetic = data.param["velocity_model"]
+    kinetic = Kinetic(X)
+    celltype = isnothing(data.celltype) ? data.clusters : data.celltype
+
+    cellindex = collect(range(0, ncells - 1))
+    cellindex = string.(cellindex);
+    cellindex = repeat(cellindex, ngenes)
+    
+    use_genes = [train_genes[i] for i in 1:train_genes_number for j in 1:ncells]
+    
+    u = reduce(vcat, X[1, :, :])
+    s = reduce(vcat, X[2, :, :])
+    û = reduce(vcat, X[1, :, :] + velocity[1, :, :])
+    ŝ = reduce(vcat, X[2, :, :] + velocity[2, :, :])
+    
+    α = reduce(vcat, kinetic[1, :, :])
+    β = reduce(vcat, kinetic[2, :, :])
+    γ = reduce(vcat, kinetic[3, :, :])
+    
+    loss = repeat([0.05], ncells * train_genes_number)
+    
+    cell_name = ["cell_$j" for i in 1:train_genes_number for j in 1:ncells]
+    
+    celltypes = repeat(celltype, train_genes_number)
+    
+    embedding1 = repeat(embedding[:, 1], train_genes_number)
+    embedding2 = repeat(embedding[:, 2], train_genes_number)
+    
+    table = hcat(
+        cellindex,
+        use_genes,
+        u,
+        s,
+        û,
+        ŝ,
+        α,
+        β,
+        γ,
+        loss,
+        cell_name,
+        celltypes,
+        embedding1,
+        embedding2
+    )
+    
+    dataframe = DataFrame(table, ["cellIndex", "gene_name", "unsplice", "splice", "unsplice_predict", "splice_predict", "alpha", "beta", "gamma", "loss", "cellID", "clusters", "embedding1", "embedding2"])
+    CSV.write("JuloVelo_result.csv", dataframe)
+    
+    return nothing
+end

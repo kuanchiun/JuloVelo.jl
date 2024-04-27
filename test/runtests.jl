@@ -1,6 +1,14 @@
 using JuloVelo
 using Test
+using BSON
+using Flux
+
+tests = [
+    "network"
+]
 
 @testset "JuloVelo.jl" begin
-    # Write your tests here.
+    for t in tests
+        include("$(t).jl")
+    end
 end
