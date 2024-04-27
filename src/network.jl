@@ -299,7 +299,7 @@ function train(data::JuloVeloObject; epochs::Int = 100, sample_number::Int = 240
     opt_state = optimizer_setting(Kinetic, learning_rate, optimizer)
     
     if logger
-        savepath = joinpath(@__DIR__, "saves/")
+        savepath = joinpath(pwd(), "saves/")
         tblogger = TBLogger(savepath, tb_overwrite)
         set_step_increment!(tblogger, 0)
         @info "TensorBoard logging at \"$(savepath)\""
