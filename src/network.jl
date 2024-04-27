@@ -220,7 +220,7 @@ function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractV
 end
 
 function build_velocity_model(data::JuloVeloObject)
-    modelpath = "../models/"
+    modelpath = joinpath(pkgdir(JuloVelo), "models")
     gene_kinetics = data.gene_kinetics
     
     BSON.@load joinpath(modelpath, "Circle.bson") circle
