@@ -3,12 +3,16 @@ module JuloVelo
 using LinearAlgebra, StatsBase, Random, Statistics
 using CUDA
 
-using Flux, NNlib
+using Plots
+using Flux, NNlib, MLUtils, Optimisers
 using Zygote, Optimisers
 using NearestNeighbors
 using Pickle, BSON
 using CSV, DataFrames
 using CurveFit
+using Distributions
+using Logging: with_logger
+using TensorBoardLogger: TBLogger, tb_overwrite, set_step!, set_step_increment!
 
 export
     # Data
