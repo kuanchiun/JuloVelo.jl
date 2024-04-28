@@ -25,7 +25,7 @@ function kinetics_embedding(data::JuloVeloObject; figuresize::Tuple{<:Int, <:Int
     labels = Set(celltype)
     p = scatter(size = figuresize, fg_legend = :transparent, axis=nothing) #
     for label in labels
-        scatter!(dimen[celltype .== label, 1], dimen[celltype .== label, 2], label = label, legend=:outerright, legendfontsize = 16, xlabel = "PC1", ylabel = "PC2", margin = 2Plots.cm)
+        scatter!(kinetics_embedding[celltype .== label, 1], kinetics_embedding[celltype .== label, 2], label = label, legend=:outerright, legendfontsize = 16, xlabel = "PC1", ylabel = "PC2", margin = 2Plots.cm)
     end
     
     return p
