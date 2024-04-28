@@ -52,13 +52,17 @@ export
     find_neighbor,
     calculate_neighbor_vector,
     to_device,
-    to_celldancer
+    to_celldancer,
+
+    # plot
+    kinetics_embedding
 
 include("data.jl")
 include("loss.jl")
 include("network.jl")
 include("sampling.jl")
 include("utils.jl")
+include("plot.jl")
 
 
 end
