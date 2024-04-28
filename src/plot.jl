@@ -2,7 +2,7 @@ function kinetics_embedding(data::JuloVeloObject; figuresize::Tuple{<:Int, <:Int
     if ~haskey(data.param, "kinetics")
         X = data.X
         Kinetics = data.param["velocity_model"]
-        kinetics = Kinetic(X)
+        kinetics = Kinetics(X)
         data.param["kinetics"] = kinetics
     else
         kinetics = data.param["kinetics"]
