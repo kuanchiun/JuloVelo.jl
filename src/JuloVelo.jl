@@ -13,6 +13,7 @@ using CurveFit
 using Distributions
 using Logging: with_logger
 using TensorBoardLogger: TBLogger, tb_overwrite, set_step!, set_step_increment!
+using MultivariateStats
 
 export
     # Data
