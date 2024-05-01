@@ -183,7 +183,7 @@ function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractV
             continue
         end
         
-        if cu[1] > 0.2f0 || cu[2] > 0.2f0 # slope or intercept > 0.2 in linear regression between chromatin and unspliced RNA 
+        if cu[1] < 0.2f0 || cu[2] < 0.2f0 # slope or intercept > 0.2 in linear regression between chromatin and unspliced RNA 
             continue
         end
         
