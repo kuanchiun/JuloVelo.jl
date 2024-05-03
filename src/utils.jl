@@ -189,3 +189,9 @@ function to_dynamo(data::JuloVeloObject)
     
     return adata
 end
+
+function write_adata(adata::Muon.AnnData; filename::AbstractString = "JuloVelo")
+    writeh5ad("$filename.h5ad", adata)
+
+    return nothing
+end
