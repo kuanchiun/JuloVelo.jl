@@ -71,6 +71,7 @@ export
     to_device,
     to_celldancer,
     to_dynamo,
+    write_adata,
 
     # velocity
     velocity_estimation,
