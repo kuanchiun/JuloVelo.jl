@@ -55,38 +55,3 @@ function density_sampling(data::JuloVeloObject; sample_number::Int = 2400, step 
     
     return data
 end
-
-function kinetic_equation(u::AbstractArray, s::AbstractArray, kinetic::AbstractArray)
-    α = kinetic[1, :, :]
-    β = kinetic[2, :, :]
-    γ = kinetic[3, :, :]
-
-    du = α .* 2.0f0 .- β .* u
-    ds = β .* u .- γ .* s
-
-    return du, ds
-end
-
-function forward(X::AbstractArray, Kinetic::Chain; dt = 0.05f0)
-    # Split data to unsplice and splice
-    u = X[1, :, :]
-    s = X[2, :, :]
-
-    # Predict kinetic
-    kinetic = Kinetic(X)
-
-    # Estimate du, ds
-    du, ds = kinetic_equation(u, s, kinetic)
-
-    # Multiply by dt
-    du = du .* dt
-    ds = ds .* dt
-    
-    # Reshape du, ds and create dt_vector
-    du = reshape(du, 1, 1, :)
-    ds = reshape(ds, 1, 1, :)
-    dt_vector = cat(du, ds, dims = 1) .+ eps(Float32)
-    
-    return dt_vector
-end
-

@@ -1,224 +1,3 @@
-"""
-    SpatialDense(in => out, depth, σ=identity; bias=true, init=glorot_uniform)
-
-Create a 3D fully connected layer, whose forward pass is given by:
-
-    y = σ.(W * x .+ bias)
-"""
-function create_bias_3D(weights::AbstractArray, bias::Bool, dims::Tuple)
-    bias ? fill!(similar(weights, dims), 0) : false
-end
-
-function create_bias_3D(weights::AbstractArray, bias::AbstractArray, dims::Tuple)
-    size(bias) == dims || throw(DimensionMismatch("expect bias of size $(dims), got size $(size(bias))"))
-    convert(AbstractArray{eltype(weights)}, bias)
-end
-
-struct SpatialDense{F, M<:AbstractArray, B}
-    weight::M
-    bias::B
-    σ::F
-    function SpatialDense(W::M, bias = true, σ::F = identity) where {M<:AbstractArray, F}
-            b = create_bias_3D(W, bias, (size(W, 1), 1, size(W, 3)))
-            new{F, M, typeof(b)}(W, b, σ)
-    end
-end
-
-function SpatialDense((in, out)::Pair{<:Integer, <:Integer}, depth::Integer, σ = identity; init = Flux.glorot_uniform, bias = true)
-    SpatialDense(init(out, in, depth), bias, σ)
-end
-
-Flux.@functor SpatialDense
-
-function (l::SpatialDense)(x)
-    σ = NNlib.fast_act(l.σ, x)
-    xT = Flux._match_eltype(l, x)
-    output = NNlib.batched_mul(l.weight, xT)
-    output = σ.(output .+ l.bias)
-    
-    return output
-end
-
-function Base.show(io::IO, l::SpatialDense)
-    print(io, "SpatialDense(", size(l.weight, 2), " => ", size(l.weight, 1))
-    print(io, ", depth = ", size(l.weight, 3))
-    l.σ == identity || print(io, ", ", l.σ)
-    l.bias == false && print(io, "; bias=false")
-    print(io, ")")
-end
-
-function define_gene_kinetic(data::JuloVeloObject)
-    # Check if genes are filter first
-    if isnothing(data.bad_correlation_genes)
-        @info "uns.bad_correlation_genes is empty, filter gene first"
-        filter_gene(data)
-    end
-    
-    if ~isnothing(data.bad_kinetics_genes)
-        @info "Already define kinetics for genes, do nothing"
-        return data
-    end
-    
-    c = data.temp_c
-    u = data.temp_u
-    s = data.temp_s
-    genes = data.temp_genes
-    pseudotime = data.pseudotime
-    clusters = data.clusters
-    root = data.root
-    datatype = data.datatype
-    
-    gene_kinetics = Array{String}(undef, 0)
-    pass = Array{Bool}(undef, 0)
-    fail = Array{Bool}(undef, 0)
-    for i in axes(genes, 1)
-        if datatype == "gex"
-            kinetics = define_gene_kinetic!(u[i, :], s[i, :], pseudotime, clusters, root)
-        else
-            kinetics = define_gene_kinetic!(c[i, :], u[i, :], s[i, :], pseudotime, clusters, root)
-        end
-        
-        if kinetics == "fail"
-            push!(pass, false)
-            push!(fail, true)
-        else
-            push!(pass, true)
-            push!(fail, false)
-            push!(gene_kinetics, kinetics)
-        end
-    end
-    
-    u = u[pass, :]
-    s = s[pass, :]
-    pass_genes = genes[pass]
-    bad_kinetics_genes = genes[fail]
-    train_genes_number = length(pass_genes)
-    
-    data.train_u = u
-    data.train_s = s
-    data.train_genes = pass_genes
-    data.bad_kinetics_genes = bad_kinetics_genes
-    data.train_genes_number = train_genes_number
-    data.gene_kinetics = gene_kinetics
-    
-    @info "$(length(data.bad_kinetics_genes)) genes are filtered due to bad kinetics"
-    @info "See .bad_kinetics_genes for details"
-    
-    return data
-end
-
-function define_gene_kinetic!(u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::String)
-    # Cluster condition initialization
-    cluster_kinetics = Array{Int}(undef, 0)
-    
-    for cluster in Set(clusters)
-        # Get information for each cluster
-        cell_idx = findall(x -> x == cluster, clusters)
-        cluster_u = u[cell_idx]
-        cluster_s = s[cell_idx]
-        cluster_pseudotime = pseudotime[cell_idx]
-        
-        # Calculate correlation and linear equation
-        us = corspearman(cluster_u, cluster_s)
-        tu = linear_fit(cluster_pseudotime, cluster_u)
-        ts = linear_fit(cluster_pseudotime, cluster_s)
-        
-        # Filter if unspliced and spliced have non-sigificant correlation
-        if abs(us) < 0.3f0
-            continue
-        end
-        
-        # Filter if pseudotime has non-sigificant correlation with unspliced and spliced
-        if abs(tu[2]) < 0.2f0 || abs(ts[2]) < 0.2f0 || tu[2]/ts[2] < 0
-            continue
-        end
-        
-        # Filter if is root cluster
-        if cluster == root
-            continue
-        end
-        
-        # Determine cluster kinetics
-        if tu[2] > 0 # Induction 
-            push!(cluster_kinetics, 1)
-        elseif tu[2] < 0 # Repression
-            push!(cluster_kinetics, -1)
-        end
-    end
-    
-    # Check the number of different kinetics in total clusters
-    cluster_kinetics = Set(cluster_kinetics)
-    
-    if length(cluster_kinetics) == 0
-        return "fail"
-    elseif length(cluster_kinetics) == 2
-        return "circle"
-    elseif 1 in cluster_kinetics
-        return "induction"
-    elseif -1 in cluster_kinetics
-        return "repression"
-    end
-end
-
-function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::String)
-    # Cluster condition initialization
-    cluster_kinetics = Array{Int}(undef, 0)
-    
-    for cluster in Set(clusters)
-        # Get information for each cluster
-        cell_idx = findall(x -> x == cluster, clusters)
-        cluster_c = c[cell_idx]
-        cluster_u = u[cell_idx]
-        cluster_s = s[cell_idx]
-        cluster_pseudotime = pseudotime[cell_idx]
-        
-        # Calculate correlation and linear equation
-        us = corspearman(cluster_u, cluster_s)
-        tu = linear_fit(cluster_pseudotime, cluster_u)
-        ts = linear_fit(cluster_pseudotime, cluster_s)
-        cu = linear_fit(cluster_c, cluster_u)
-        
-        # Filter if unspliced and spliced have non-sigificant correlation
-        if abs(us) < 0.3f0
-            continue
-        end
-        
-        if cu[1] < 0.2f0 || cu[2] < 0.2f0 # slope or intercept > 0.2 in linear regression between chromatin and unspliced RNA 
-            continue
-        end
-        
-        # Filter if pseudotime has non-sigificant correlation with unspliced and spliced
-        if abs(tu[2]) < 0.2f0 || abs(ts[2]) < 0.2f0 || tu[2]/ts[2] < 0
-            continue
-        end
-        
-        # Filter if is root cluster
-        if cluster == root
-            continue
-        end
-        
-        # Determine cluster kinetics
-        if tu[2] > 0 # Induction 
-            push!(cluster_kinetics, 1)
-        elseif tu[2] < 0 # Repression
-            push!(cluster_kinetics, -1)
-        end
-    end
-    
-    # Check the number of different kinetics in total clusters
-    cluster_kinetics = Set(cluster_kinetics)
-    
-    if length(cluster_kinetics) == 0
-        return "fail"
-    elseif length(cluster_kinetics) == 2
-        return "circle"
-    elseif 1 in cluster_kinetics
-        return "induction"
-    elseif -1 in cluster_kinetics
-        return "repression"
-    end
-end
-
 function build_velocity_model(data::JuloVeloObject)
     modelpath = joinpath(pkgdir(JuloVelo), "models")
     gene_kinetics = data.gene_kinetics
@@ -339,29 +118,71 @@ function train(data::JuloVeloObject; epochs::Int = 100, sample_number::Int = 240
     end
 end
 
-function velocity_estimation(data::JuloVeloObject; dt::AbstractFloat = 0.5f0)
-    ncells = data.ncells
-    ngenes = data.train_genes_number
-    u = data.train_u'
-    s = data.train_s'
-    X = data.X
-    Kinetic = data.param["velocity_model"]
-    
+function forward(X::AbstractArray, Kinetic::Chain; dt = 0.05f0)
+    # Split data to unsplice and splice
+    u = X[1, :, :]
+    s = X[2, :, :]
+
+    # Predict kinetic
     kinetic = Kinetic(X)
-    
+
+    # Estimate du, ds
     du, ds = kinetic_equation(u, s, kinetic)
-    
+
     # Multiply by dt
     du = du .* dt
     ds = ds .* dt
     
     # Reshape du, ds and create dt_vector
-    û = permutedims(reshape(du, ncells, 1, ngenes), (2, 1, 3))
-    ŝ = permutedims(reshape(ds, ncells, 1, ngenes), (2, 1, 3))
-    X̂ = vcat(û, ŝ) .+ eps(Float32)
+    du = reshape(du, 1, 1, :)
+    ds = reshape(ds, 1, 1, :)
+    dt_vector = cat(du, ds, dims = 1) .+ eps(Float32)
     
-    data.param["velocity"] = X̂
+    return dt_vector
+end
+
+function eval_loss(X::AbstractArray, Kinetic::Chain, neighbor_vector::AbstractArray, neighbor_number::Int, sample_number::Int, λ::AbstractFloat, dt::AbstractFloat)
+    # Predict du, ds
+    dt_vector = forward(X, Kinetic)
     
-    @info "Velocity saved in param.velocity"
-    return data
-end  
+    # Calculate cosine similarity loss
+    cos_loss = cosine_loss(neighbor_vector, dt_vector, neighbor_number, sample_number)
+    
+    # L2 penalty
+    penalty = (l2_penalty(Kinetic.layers.l1.weight) + 
+    l2_penalty(Kinetic.layers.l2.weight) + 
+    l2_penalty(Kinetic.layers.l3.weight)) * λ
+    
+    
+    # loss
+    loss = cos_loss + penalty
+    #loss = cos_loss
+    
+    return loss
+end
+
+function eval_loss_report(X::AbstractArray, Kinetic::Chain, neighbor_vector::AbstractArray, train_genes_number::Int, neighbor_number::Int, sample_number::Int, λ::AbstractFloat, dt::AbstractFloat)
+    # Predict du, ds
+    dt_vector = forward(X, Kinetic)
+    
+    # Calculate cosine similarity loss
+    cos_loss = cosine_loss(neighbor_vector, dt_vector, neighbor_number, sample_number)
+    
+    # Calculate average cosine similarity
+    AvgMeanCos = 1 - (cos_loss / (train_genes_number * sample_number))
+    
+    # L2 penalty
+    penalty = (l2_penalty(Kinetic.layers.l1.weight) + 
+    l2_penalty(Kinetic.layers.l2.weight) + 
+    l2_penalty(Kinetic.layers.l3.weight)) * λ
+    
+    return (cos_loss = cos_loss |> round4, penalty = penalty |> round4, AvgMeanCos = AvgMeanCos |> round4)
+end
+
+round4(x::AbstractFloat)::AbstractFloat = round(x, digits = 4)
+
+function report(epoch::Int, train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector::AbstractArray, train_genes_number::Int, neighbor_number::Int, sample_number::Int, λ::AbstractFloat, dt::AbstractFloat) 
+    train = eval_loss_report(train_X, Kinetic, train_neighbor_vector, train_genes_number, neighbor_number, sample_number, λ, dt)
+    println("Epoch: $epoch  Train: $(train)")
+    return train
+end

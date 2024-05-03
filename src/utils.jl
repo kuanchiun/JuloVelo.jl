@@ -146,3 +146,46 @@ function to_celldancer(data::JuloVeloObject)
     
     return nothing
 end
+
+function to_dynamo(data::JuloVeloObject)
+    # Extract information
+    X = data.X
+    genes = data.train_genes
+    embedding = data.embedding
+    velocity_embedding = data.param["velocity_embedding"]
+    model = data.param["velocity_model"]
+    velocity = data.param["velocity"]
+    celltype = data.celltype
+    leiden = data.clusters
+    # Get spliced and unspliced RNA
+    u = X[1, :, :]
+    s = X[2, :, :]
+    cellID = ["cell_$i" for i in 1:data.ncells]
+    # Get kinetics parameters
+    kinetics = model(X)
+    α = kinetics[1, :, :]
+    β = kinetics[2, :, :]
+    γ = kinetics[3, :, :]
+    
+    # Get velocity
+    û = velocity[1, :, :]
+    ŝ = velocity[2, :, :]
+    # Create Anndata
+    adata = AnnData(X = s, obs_names = cellID, var_names = genes)
+    # Add dynamo required element to adata
+    adata.obs[!, "clusters"] = celltype
+    adata.obs[!, "leiden"] = leiden
+    adata.layers["M_s"] = s
+    adata.layers["X_spliced"] = s
+    adata.layers["M_u"] = u
+    adata.layers["X_unspliced"] = u
+    adata.layers["alpha"] = α
+    adata.layers["beta"] = β
+    adata.layers["gamma"] = γ
+    adata.layers["velocity_U"] = û
+    adata.layers["velocity_S"] = ŝ
+    adata.obsm["X_cdr"] = embedding
+    adata.obsm["velocity_cdr"] = velocity_embedding
+    
+    return adata
+end
