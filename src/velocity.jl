@@ -130,15 +130,7 @@ function velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_g
     return velocity_embedding
 end
 
-function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractString, Nothing} = nothing, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8)
-    if isnothing(python_path)
-        throw(ArgumentError("empty python_path, please give the python path in celldancer environment."))
-    end
-    
-    if ~isfile(python_path)
-        throw(ArgumentError("Invalid python path, please make sure your python path again."))
-    end
-        
+function estimate_pseudotime(data::JuloVeloObject, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8)
     if isnothing(n_path)
         throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
     end
