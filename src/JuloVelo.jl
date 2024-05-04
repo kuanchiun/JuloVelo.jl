@@ -77,7 +77,8 @@ export
     # velocity
     velocity_estimation,
     kinetic_equation,
-    compute_cell_velocity
+    compute_cell_velocity,
+    estimate_pseudotime
 
 
 include("data.jl")

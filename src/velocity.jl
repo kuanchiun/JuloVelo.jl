@@ -143,11 +143,6 @@ function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractSt
         throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
     end
     
-    ENV["PYTHON"] = python_path
-    @eval using Pkg
-    Pkg.build("PyCall")
-    @eval using PyCall
-    
     to_celldancer(data)
     
     @info "Start estimate pseudotime, it may take a long time."
