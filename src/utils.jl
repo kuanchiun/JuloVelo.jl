@@ -89,6 +89,7 @@ function to_device(train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector
 end
 
 function to_celldancer(data::JuloVeloObject)
+    # Get information
     ncells = data.ncells
     ngenes = data.train_genes_number
     train_genes = data.train_genes
@@ -99,49 +100,61 @@ function to_celldancer(data::JuloVeloObject)
     Kinetic = data.param["velocity_model"]
     kinetic = Kinetic(X)
     celltype = isnothing(data.celltype) ? data.clusters : data.celltype
-
+    # Create cell index
     cellindex = collect(range(0, ncells - 1))
     cellindex = string.(cellindex);
     cellindex = repeat(cellindex, ngenes)
-    
+    # Create basic information for celldancer
     use_genes = [train_genes[i] for i in 1:train_genes_number for j in 1:ncells]
-    
     u = reduce(vcat, X[1, :, :])
     s = reduce(vcat, X[2, :, :])
     û = reduce(vcat, X[1, :, :] + velocity[1, :, :])
     ŝ = reduce(vcat, X[2, :, :] + velocity[2, :, :])
-    
     α = reduce(vcat, kinetic[1, :, :])
     β = reduce(vcat, kinetic[2, :, :])
     γ = reduce(vcat, kinetic[3, :, :])
-    
     loss = repeat([0.05], ncells * train_genes_number)
-    
     cell_name = ["cell_$j" for i in 1:train_genes_number for j in 1:ncells]
-    
     celltypes = repeat(celltype, train_genes_number)
-    
     embedding1 = repeat(embedding[:, 1], train_genes_number)
     embedding2 = repeat(embedding[:, 2], train_genes_number)
-    
+    # Create basic table for celldancer
     table = hcat(
-        cellindex,
-        use_genes,
-        u,
-        s,
-        û,
-        ŝ,
-        α,
-        β,
-        γ,
-        loss,
-        cell_name,
-        celltypes,
-        embedding1,
-        embedding2
-    )
+            cellindex,
+            use_genes,
+            u,
+            s,
+            û,
+            ŝ,
+            α,
+            β,
+            γ,
+            loss,
+            cell_name,
+            celltypes,
+            embedding1,
+            embedding2
+        )
     
-    dataframe = DataFrame(table, ["cellIndex", "gene_name", "unsplice", "splice", "unsplice_predict", "splice_predict", "alpha", "beta", "gamma", "loss", "cellID", "clusters", "embedding1", "embedding2"])
+    index = ["cellIndex", "gene_name", "unsplice", "splice", "unsplice_predict", "splice_predict", "alpha", "beta", "gamma", "loss", "cellID", "clusters", "embedding1", "embedding2"]
+    # Add velocity embedding information if existed
+    if haskey(data.param, "velocity_embedding")
+        velocity_embedding = data.param["velocity_embedding"]
+        velocity1 = repeat(velocity_embedding[:, 1], train_genes_number)
+        velocity2 = repeat(velocity_embedding[:, 2], train_genes_number)
+        table = hcat(table, velocity1, velocity2)
+        push!(index, "velocity1")
+        push!(index, "velocity2")
+    end
+    # Add pseudotime information if existed
+    if haskey(data.param, "pseudotime")
+        pseudotime = data.param["pseudotime"]
+        pseudotime = repeat(pseudotime, train_genes_number)
+        table = hcat(table, pseudotime)
+        push!(index, "pseudotime")
+    end
+    
+    dataframe = DataFrame(table, index)
     CSV.write("JuloVelo_result.csv", dataframe)
     
     return nothing
@@ -157,6 +170,9 @@ function to_dynamo(data::JuloVeloObject)
     velocity = data.param["velocity"]
     celltype = data.celltype
     leiden = data.clusters
+    if haskey(data.param, "JuloVelo_pseudotime")
+        pseudotime = data.param["JuloVelo_pseudotime"]
+    end
     # Get spliced and unspliced RNA
     u = X[1, :, :]
     s = X[2, :, :]
@@ -186,6 +202,9 @@ function to_dynamo(data::JuloVeloObject)
     adata.layers["velocity_S"] = ŝ
     adata.obsm["X_cdr"] = embedding
     adata.obsm["velocity_cdr"] = velocity_embedding
+    if haskey(data.param, "JuloVelo_pseudotime")
+        adata.obs[!, "pseudotime"] = pseudotime
+    end
     
     return adata
 end

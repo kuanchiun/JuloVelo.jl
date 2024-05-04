@@ -129,3 +129,60 @@ function velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_g
     
     return velocity_embedding
 end
+
+function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractString, Nothing} = nothing, n_path::Union{Int, Nothing} = nothing)
+    if isnothing(python_path)
+        throw(ArgumentError("empty python_path, please give the python path in celldancer environment."))
+    end
+    
+    if ~isfile(python_path)
+        throw(ArgumentError("Invalid python path, please make sure your python path again."))
+    end
+        
+    if isnothing(n_path)
+        throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
+    end
+    
+    ENV["PYTHON"] = python_path
+    @eval using Pkg
+    Pkg.build("PyCall")
+    @eval using PyCall
+    
+    to_celldancer(data)
+    
+    @info "Start estimate pseudotime, it may take a long time."
+    
+    py"""
+    import pandas as pd
+    import celldancer as cd
+    import celldancer.utilities as cdutil
+
+    JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
+
+    import random
+    # set parameters
+    dt = 0.05
+    t_total = {dt:int(10/dt)}
+    n_repeats = 10
+
+    # estimate pseudotime
+    JuloVelo_df = cd.pseudo_time(cellDancer_df=JuloVelo_df,
+                               grid=(30,30),
+                               dt=dt,
+                               t_total=t_total[dt],
+                               n_repeats=n_repeats,
+                               speed_up=(100,100),
+                               n_paths = 2,
+                               psrng_seeds_diffusion=[i for i in range(n_repeats)],
+                               n_jobs=16)
+    
+    JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
+    """
+    
+    ncells = data.ncells
+    JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
+    pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
+    data.param["JuloVelo_pseudotime"] = pseudotime
+    
+    return data
+end
