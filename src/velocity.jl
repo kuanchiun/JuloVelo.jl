@@ -130,7 +130,7 @@ function velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_g
     return velocity_embedding
 end
 
-function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractString, Nothing} = nothing, n_path::Union{Int, Nothing} = nothing)
+function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractString, Nothing} = nothing, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8)
     if isnothing(python_path)
         throw(ArgumentError("empty python_path, please give the python path in celldancer environment."))
     end
@@ -151,14 +151,14 @@ function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractSt
     import pandas as pd
     import celldancer as cd
     import celldancer.utilities as cdutil
+    import random
 
     JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
 
-    import random
     # set parameters
     dt = 0.05
     t_total = {dt:int(10/dt)}
-    n_repeats = 10
+    n_repeats = $n_repeat
 
     # estimate pseudotime
     JuloVelo_df = cd.pseudo_time(cellDancer_df=JuloVelo_df,
@@ -167,9 +167,9 @@ function estimate_pseudotime(data::JuloVeloObject, python_path::Union{AbstractSt
                                t_total=t_total[dt],
                                n_repeats=n_repeats,
                                speed_up=(100,100),
-                               n_paths = 2,
+                               n_paths = $n_path,
                                psrng_seeds_diffusion=[i for i in range(n_repeats)],
-                               n_jobs=16)
+                               n_jobs=$n_jobs)
     
     JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
     """
