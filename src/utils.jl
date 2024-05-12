@@ -88,7 +88,7 @@ function to_device(train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector
     return train_X, Kinetic, train_neighbor_vector
 end
 
-function to_celldancer(data::JuloVeloObject)
+function to_celldancer(data::JuloVeloObject; datapath = "")
     # Get information
     ncells = data.ncells
     ngenes = data.train_genes_number
@@ -155,7 +155,7 @@ function to_celldancer(data::JuloVeloObject)
     end
     
     dataframe = DataFrame(table, index)
-    CSV.write("JuloVelo_result.csv", dataframe)
+    CSV.write(joinpath(datapath, "JuloVelo_result.csv"), dataframe)
     
     return nothing
 end
@@ -200,8 +200,8 @@ function to_dynamo(data::JuloVeloObject)
     adata.layers["gamma"] = γ
     adata.layers["velocity_U"] = û
     adata.layers["velocity_S"] = ŝ
-    adata.obsm["X_cdr"] = embedding
-    adata.obsm["velocity_cdr"] = velocity_embedding
+    adata.obsm["X_ebd"] = embedding
+    adata.obsm["velocity_ebd"] = velocity_embedding
     if haskey(data.param, "JuloVelo_pseudotime")
         adata.obs[!, "pseudotime"] = pseudotime
     end
