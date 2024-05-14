@@ -37,19 +37,38 @@ function kinetic_equation(u::AbstractArray, s::AbstractArray, kinetic::AbstractA
     return du, ds
 end
 
-function compute_cell_velocity(data::JuloVeloObject)
-    X = data.X
-    embedding = data.embedding
-    velocity = data.param["velocity"]
+function compute_cell_velocity(data::JuloVeloObject; type = "JuloVelo")
+    if type == "JuloVelo"
+        X = data.X
+        embedding = data.embedding
+        velocity = data.param["velocity"]
     
-    spliced_matrix = X[2, :, :]'
-    velocity_spliced_matrix = velocity[2, :, :]'
-    velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
+        spliced_matrix = X[2, :, :]'
+        velocity_spliced_matrix = velocity[2, :, :]'
+        velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
     
-    neighbor_graph = get_neighbor_graph(embedding)
-    velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
+        neighbor_graph = get_neighbor_graph(embedding)
+        velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
     
-    data.param["velocity_embedding"] = velocity_embedding
+        data.param["velocity_embedding"] = velocity_embedding
+    elseif type == "celldancer"
+        to_celldancer(data)
+
+        py"""
+        import pandas as pd
+        import celldancer as cd
+
+        JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
+        JuloVelo_df = cd.compute_cell_velocity(cellDancer_df=JuloVelo_df, projection_neighbor_choice='gene', expression_scale='power10', projection_neighbor_size=10, speed_up=(100,100))
+    
+        JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
+        """
+
+        ncells = data.ncells
+        JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
+        velocity_embedding = Matrix(JuloVelo_df[1:ncells, ["velocity1", "velocity2"]])
+        data.param["velocity_embedding"] = velocity_embedding
+    end
     
     return data
 end
