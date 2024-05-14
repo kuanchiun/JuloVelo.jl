@@ -53,17 +53,17 @@ function compute_cell_velocity(data::JuloVeloObject; pipeline_type = "JuloVelo")
         data.param["velocity_embedding"] = velocity_embedding
     elseif pipeline_type == "celldancer"
         to_celldancer(data)
-
+        
         py"""
         import pandas as pd
         import celldancer as cd
 
         JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
         JuloVelo_df = cd.compute_cell_velocity(cellDancer_df=JuloVelo_df, projection_neighbor_choice='gene', expression_scale='power10', projection_neighbor_size=10, speed_up=(100,100))
-    
+        
         JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
         """
-
+        
         ncells = data.ncells
         JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
         velocity_embedding = Matrix(JuloVelo_df[1:ncells, ["velocity1", "velocity2"]])
