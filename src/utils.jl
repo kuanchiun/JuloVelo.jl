@@ -206,8 +206,8 @@ function to_dynamo(data::JuloVeloObject)
         adata.obs[!, "pseudotime"] = pseudotime
     end
     
-    if any(ismissing.(adata_JuloVelo.obsm["velocity_ebd"]))
-        adata_JuloVelo.obsm["velocity_ebd"] = replace(adata_JuloVelo.obsm["velocity_ebd"], missing => NaN)
+    if any(ismissing.(adata.obsm["velocity_ebd"]))
+        adata.obsm["velocity_ebd"] = replace(adata.obsm["velocity_ebd"], missing => NaN)
     end
 
     return adata
