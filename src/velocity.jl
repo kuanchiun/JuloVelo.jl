@@ -37,8 +37,8 @@ function kinetic_equation(u::AbstractArray, s::AbstractArray, kinetic::AbstractA
     return du, ds
 end
 
-function compute_cell_velocity(data::JuloVeloObject; type = "JuloVelo")
-    if type == "JuloVelo"
+function compute_cell_velocity(data::JuloVeloObject; pipeline_type = "JuloVelo")
+    if pipeline_type == "JuloVelo"
         X = data.X
         embedding = data.embedding
         velocity = data.param["velocity"]
@@ -51,7 +51,7 @@ function compute_cell_velocity(data::JuloVeloObject; type = "JuloVelo")
         velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
     
         data.param["velocity_embedding"] = velocity_embedding
-    elseif type == "celldancer"
+    elseif pipeline_type == "celldancer"
         to_celldancer(data)
 
         py"""
