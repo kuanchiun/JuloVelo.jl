@@ -37,7 +37,7 @@ function kinetic_equation(u::AbstractArray, s::AbstractArray, kinetic::AbstractA
     return du, ds
 end
 
-function compute_cell_velocity(data::JuloVeloObject; pipeline_type = "JuloVelo")
+function compute_cell_velocity(data::JuloVeloObject; pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200)
     if pipeline_type == "JuloVelo"
         X = data.X
         embedding = data.embedding
@@ -47,7 +47,7 @@ function compute_cell_velocity(data::JuloVeloObject; pipeline_type = "JuloVelo")
         velocity_spliced_matrix = velocity[2, :, :]'
         velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
     
-        neighbor_graph = get_neighbor_graph(embedding)
+        neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
         velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
     
         data.param["velocity_embedding"] = velocity_embedding
@@ -73,7 +73,7 @@ function compute_cell_velocity(data::JuloVeloObject; pipeline_type = "JuloVelo")
     return data
 end
 
-function velocity_correlation(spliced_matrix, velocity_spliced_matrix)
+function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix)
     correlation_matrix = zeros32(size(spliced_matrix)[2], size(velocity_spliced_matrix)[2])
     @inbounds for i in axes(spliced_matrix, 2)
         correlation_matrix[i, :] = correlation_coefficient(spliced_matrix, velocity_spliced_matrix, i)
@@ -83,7 +83,7 @@ function velocity_correlation(spliced_matrix, velocity_spliced_matrix)
     return correlation_matrix
 end
 
-function correlation_coefficient(spliced_matrix, velocity_spliced_matrix, i)
+function correlation_coefficient(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, i::Int)
     spliced_matrix = spliced_matrix'
     velocity_spliced_matrix = velocity_spliced_matrix'
     spliced_matrix = spliced_matrix .- spliced_matrix[i, :]'
@@ -103,7 +103,7 @@ function correlation_coefficient(spliced_matrix, velocity_spliced_matrix, i)
     return correlation'
 end
 
-function get_neighbor_graph(embedding; n_neighbors = 200)
+function get_neighbor_graph(embedding::AbstractMatrix, n_neighbors::Int)
     graph = zeros32(size(embedding)[1], size(embedding)[1])
     
     kdTree = KDTree(embedding')
@@ -118,7 +118,7 @@ function get_neighbor_graph(embedding; n_neighbors = 200)
     return graph
 end
 
-function velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
+function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix)
     function replace_nan(v)
         return map(x -> isnan(x) ? zero(x) : x, v)
     end

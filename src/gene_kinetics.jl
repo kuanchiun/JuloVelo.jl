@@ -169,3 +169,29 @@ function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractV
         return "repression"
     end
 end
+
+function kinetics_embedding(data::JuloVeloObject; basis::AbstractString = "pca", min_dist::AbstractFloat = 0.5, n_neighbors::Int = 50)
+    if ~haskey(data.param, "kinetics")
+        X = data.X
+        Kinetics = data.param["velocity_model"]
+        kinetics = Kinetics(X)
+        data.param["kinetics"] = kinetics
+    else
+        kinetics = data.param["kinetics"]
+    end
+    
+    α = kinetics[1, :, :]'
+    β = kinetics[2, :, :]'
+    γ = kinetics[3, :, :]'
+    embedding = vcat(α, β, γ)
+
+    if basis == "pca"
+        M = MultivariateStats.fit(PCA, embedding; maxoutdim = 2)
+        kinetics_embedding = predict(M, embedding)'
+    elseif basis == "umap"
+        kinetics_embedding = umap(embedding; min_dist = min_dist, n_neighbors = n_neighbors)'
+    end
+    data.param["kinetics_embedding"] = kinetics_embedding
+
+    return data
+end

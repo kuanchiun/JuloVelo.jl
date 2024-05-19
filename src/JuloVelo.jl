@@ -21,6 +21,7 @@ using Optimisers
 using Pickle
 using PyCall
 using Plots
+using UMAP
 using Zygote
 
 using Logging: with_logger
@@ -37,6 +38,7 @@ export
     # gene kinetics
     define_gene_kinetic,
     define_gene_kinetic!,
+    kinetics_embedding,
 
     # layer
     SpatialDense,
@@ -57,7 +59,7 @@ export
     report,
 
     # plot
-    kinetics_embedding,
+    plot_kinetics_embedding,
 
     # sampling
     gaussian_kernel,
