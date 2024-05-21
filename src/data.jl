@@ -6,6 +6,7 @@ mutable struct JuloVeloObject <: AbstractJuloVeloObject
     c::Union{AbstractMatrix{<:Float32}, Nothing}
     u::AbstractMatrix{<:Float32}
     s::AbstractMatrix{<:Float32}
+    train_c::Union{AbstractMatrix{<:Float32}, Nothing}
     train_u::Union{AbstractMatrix{<:Float32}, Nothing}
     train_s::Union{AbstractMatrix{<:Float32}, Nothing}
     temp_c::Union{AbstractMatrix{<:Float32}, Nothing}
@@ -56,6 +57,7 @@ mutable struct JuloVeloObject <: AbstractJuloVeloObject
         data.X = nothing
         data.u = u
         data.s = s
+        data.train_c = nothing
         data.train_u = nothing
         data.train_s = nothing
         data.temp_c = nothing

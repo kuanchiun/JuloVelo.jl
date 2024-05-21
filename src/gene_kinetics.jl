@@ -25,7 +25,7 @@ function define_gene_kinetic(data::JuloVeloObject)
     for i in axes(genes, 1)
         if datatype == "gex"
             kinetics = define_gene_kinetic!(u[i, :], s[i, :], pseudotime, clusters, root)
-        else
+        elseif datatype == "multi"
             kinetics = define_gene_kinetic!(c[i, :], u[i, :], s[i, :], pseudotime, clusters, root)
         end
         
@@ -39,6 +39,10 @@ function define_gene_kinetic(data::JuloVeloObject)
         end
     end
     
+    if datatype == "multi"
+        c = c[pass, :]
+        data.train_c = c
+    end
     u = u[pass, :]
     s = s[pass, :]
     pass_genes = genes[pass]
