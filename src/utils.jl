@@ -160,7 +160,7 @@ function to_celldancer(data::JuloVeloObject; datapath = "")
     return nothing
 end
 
-function to_dynamo(data::JuloVeloObject)
+function to_anndata(data::JuloVeloObject)
     # Extract information
     X = data.X
     genes = data.train_genes

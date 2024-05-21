@@ -73,7 +73,7 @@ export
     calculate_neighbor_vector,
     to_device,
     to_celldancer,
-    to_dynamo,
+    to_anndata,
     write_adata,
 
     # velocity
