@@ -205,9 +205,9 @@ function to_dynamo(data::JuloVeloObject)
     if haskey(data.param, "JuloVelo_pseudotime")
         adata.obs[!, "pseudotime"] = pseudotime
     end
-    
+
     if ~isnothing(data.train_c)
-        c = data.train_c
+        c = data.train_c'
         adata.layers["M_c"] = c
     end
     
