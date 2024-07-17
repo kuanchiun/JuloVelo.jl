@@ -72,6 +72,7 @@ function train(data::JuloVeloObject; epochs::Int = 100, sample_number::Int = 240
     ncells = data.ncells
     train_genes_number = data.train_genes_number
     Kinetic = data.param["velocity_model"]
+    use_cuda = CUDA.functional()
     
     train_neighbor_vector = calculate_neighbor_vector(train_X, train_genes_number, sample_number, neighbor_number)
     train_X, Kinetic, train_neighbor_vector = to_device(train_X, Kinetic, train_neighbor_vector)
@@ -114,7 +115,9 @@ function train(data::JuloVeloObject; epochs::Int = 100, sample_number::Int = 240
         test_loss = nothing
         gs = nothing
         GC.gc(true)
-        CUDA.reclaim()
+        if use_cuda
+            CUDA.reclaim()
+        end
     end
 end
 
