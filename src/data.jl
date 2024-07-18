@@ -93,6 +93,88 @@ mutable struct JuloVeloObject <: AbstractJuloVeloObject
         
         return data
     end
+    
+    function JuloVeloObject(adata::Muon.AnnData, root::Union{AbstractString, Int}; clusters = "leiden", celltype = "clusters", basis = "umap", normalized::Bool = true)
+        data = new()
+        u, s, genes, pseudotime, clusters, embedding, celltype = load_data(adata; clusters, celltype, basis, normalized)
+        root = typeof(root) == String ? root : string(root)
+    
+        # Data
+        data.X = nothing
+        data.c = nothing
+        data.u = u
+        data.s = s
+        data.train_c = nothing
+        data.train_u = nothing
+        data.train_s = nothing
+        data.temp_c = nothing
+        data.temp_u = nothing
+        data.temp_s = nothing
+        # Training data
+        data.train_X = nothing
+        data.gene_kinetics = nothing
+        # Gene
+        data.ngenes = size(u, 1)
+        data.genes = genes
+        data.temp_genes = nothing
+        data.train_genes = nothing
+        data.train_genes_number = nothing
+        data.bad_correlation_genes = nothing
+        data.bad_kinetics_genes = nothing
+        # Cell characteristic
+        data.ncells = size(u, 2)
+        data.pseudotime = pseudotime
+        data.clusters = clusters
+        data.root = root
+        data.embedding = embedding
+        data.celltype = celltype
+        data.datatype = "gex"
+        
+        data.param = Dict{String, Any}()
+    
+        return data
+    end
+    
+    function JuloVeloObject(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData, root::Union{AbstractString, Int}; clusters = "leiden", celltype = "clusters", embedding = "umap", normalized::Bool = true)
+        data = new()
+        c, u, s, genes, pseudotime, clusters, embedding, celltype = load_data(adata_rna, adata_atac; clusters, celltype, basis, normalized)
+        root = typeof(root) == String ? root : string(root)
+        
+         # Data
+        data.X = nothing
+        data.c = c
+        data.u = u
+        data.s = s
+        data.train_c = nothing
+        data.train_u = nothing
+        data.train_s = nothing
+        data.temp_c = nothing
+        data.temp_u = nothing
+        data.temp_s = nothing
+        # Training data
+        data.train_X = nothing
+        data.gene_kinetics = nothing
+        # Gene
+        data.ngenes = size(u, 1)
+        data.genes = genes
+        data.temp_genes = nothing
+        data.train_genes = nothing
+        data.train_genes_number = nothing
+        data.bad_correlation_genes = nothing
+        data.bad_kinetics_genes = nothing
+        # Cell characteristic
+        data.ncells = size(u, 2)
+        data.pseudotime = pseudotime
+        data.clusters = clusters
+        data.root = root
+        data.embedding = embedding
+        data.celltype = celltype
+        data.datatype = "multi"
+        
+        data.param = Dict{String, Any}()
+    
+        return data
+    end
 end
 
 function load_data(datapath::AbstractString; datatype::AbstractString = "gex", normalized::Bool = true)
@@ -151,6 +233,46 @@ function load_data(datapath::AbstractString; datatype::AbstractString = "gex", n
     else
         return c, u, s, genes, pseudotime, clusters, embedding, celltype, M
     end
+end
+
+function load_data(adata::Muon.AnnData; clusters = "leiden", celltype = "clusters", basis = "umap", normalized::Bool = true)
+    u = adata.layers["Mu"]'
+    s = adata.layers["Ms"]'
+    genes = Array{AbstractString}(adata.var_names)
+    pseudotime = adata.obs[!, "dpt_pseudotime"]
+    cls = Array{AbstractString}(adata.obs[!, clusters])
+    embedding = adata.obsm["X_$basis"]
+    cts = Array{AbstractString}(adata.obs[!, celltype])
+    
+    if normalized
+        u = mapslices(x -> x ./ (maximum(x) + eps(Float32)), u, dims = 2)
+        s = mapslices(x -> x ./ (maximum(x) + eps(Float32)), s, dims = 2)
+    end
+    
+    return u, s, genes, pseudotime, cls, embedding, cts
+end
+
+function load_data(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; clusters = "leiden", celltype = "clusters", basis = "umap", normalized::Bool = true)
+    u = adata_rna.layers["Mu"]'
+    s = adata_rna.layers["Ms"]'
+    genes = Array{AbstractString}(adata_rna.var_names)
+    pseudotime = adata_rna.obs[!, "dpt_pseudotime"]
+    cls = Array{AbstractString}(adata_rna.obs[!, clusters])
+    embedding = adata_rna.obsm["X_$basis"]
+    cts = Array{AbstractString}(adata_rna.obs[!, celltype])
+    
+    if normalized
+        u = mapslices(x -> x ./ (maximum(x) + eps(Float32)), u, dims = 2)
+        s = mapslices(x -> x ./ (maximum(x) + eps(Float32)), s, dims = 2)
+    end
+    
+    c = adata_atac.X'
+    
+    if normalized
+        c = mapslices(x -> x ./ (maximum(x) + eps(Float32)), c, dims = 2)
+    end
+    
+    return c, u, s, genes, pseudotime, cls, embedding, cts
 end
 
 function reshape_data(data::JuloVeloObject)
