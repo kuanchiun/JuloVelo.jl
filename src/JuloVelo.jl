@@ -1,6 +1,5 @@
 module JuloVelo
 
-using Base
 using LinearAlgebra
 using StatsBase
 using Statistics
