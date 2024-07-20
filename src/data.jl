@@ -39,7 +39,7 @@ mutable struct JuloVeloObject <: AbstractJuloVeloObject
     param::Dict{<:AbstractString, <:Any}
     
     function JuloVeloObject(datapath::AbstractString, root::Union{AbstractString, Int}; datatype::AbstractString = "gex", normalized::Bool = true)
-        depwarn(
+        Base.depwarn(
             "This type of function will be deprecated in a future version"
         )
         data = new()
