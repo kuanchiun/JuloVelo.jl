@@ -39,6 +39,9 @@ mutable struct JuloVeloObject <: AbstractJuloVeloObject
     param::Dict{<:AbstractString, <:Any}
     
     function JuloVeloObject(datapath::AbstractString, root::Union{AbstractString, Int}; datatype::AbstractString = "gex", normalized::Bool = true)
+        Base.depwarn(
+            "This type of function will be deprecated in a future version"
+        )
         data = new()
         # Check datatype
         if ~(lowercase(datatype) in ["gex", "multi"])
