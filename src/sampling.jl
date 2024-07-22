@@ -9,43 +9,6 @@ function meshgrid(x::AbstractVector, y::AbstractVector)
     return vcat(meshgrid!.(x, y')'...)
 end
 
-function density_sampling!(X::AbstractMatrix, ncells::Int; sample_number::Int = 2400, step = (30, 30))
-    # initial point on 2D space
-    grs = []
-    for dim in axes(X, 1)
-        min, max = minimum(X[dim, :]), maximum(X[dim, :])
-        min = min - 0.025f0 * abs(max - min)
-        max = max + 0.025f0 * abs(max - min)
-        gr = range(min, max, 30)
-        push!(grs, gr)
-    end
-    # Add gaussian noise
-    gridpoints = meshgrid(grs[1], grs[2]) + rand(Normal(), step[1] * step[2], 2) * 0.15f0
-    
-    # Find point far away from the gaussian point
-    kdTree = KDTree(X)
-    grid_idxs, _ = knn(kdTree, gridpoints', 10)
-    idx_choice = sort(unique(vcat(grid_idxs...)))
-    
-    # Find the sparse point
-    _, density_dists = knn(kdTree, X[:, idx_choice], 10)
-    density_kernel = gaussian_kernel.(density_dists; mu = 0, sigma = 0.5)
-    density_kernel = sum.(density_kernel)
-    
-    # Save sparse point region
-    sparse_point = density_kernel .< percentile(density_kernel, 15)
-    sparse_idx = idx_choice[sparse_point]
-    
-    # Add points in dense region
-    dense_number = sample_number - length(sparse_idx)
-    dense_idx = rand(reshape(1:ncells, :)[1:ncells .∉ Ref(sparse_idx)], dense_number)
-    
-    # Merge point
-    idx_choice = vcat(sparse_idx, dense_idx)
-    
-    return idx_choice
-end
-
 function density_sampling(adata::Muon.AnnData; sample_number::Int = 2400, step = (30, 30), overwrite = false)
     # Check if data is reshaped
     if ~haskey(adata.uns, "X")
@@ -84,12 +47,39 @@ function density_sampling(adata::Muon.AnnData; sample_number::Int = 2400, step =
     return adata
 end
 
-function report(epoch::Int, train_X::AbstractArray, Kinetics::Chain, train_neighbor_vector::AbstractArray, train_gene_number::Int, sample_number::Int;
-        neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
+function density_sampling!(X::AbstractMatrix, ncells::Int; sample_number::Int = 2400, step = (30, 30))
+    # initial point on 2D space
+    grs = []
+    for dim in axes(X, 1)
+        min, max = minimum(X[dim, :]), maximum(X[dim, :])
+        min = min - 0.025f0 * abs(max - min)
+        max = max + 0.025f0 * abs(max - min)
+        gr = range(min, max, 30)
+        push!(grs, gr)
+    end
+    # Add gaussian noise
+    gridpoints = meshgrid(grs[1], grs[2]) + rand(Normal(), step[1] * step[2], 2) * 0.15f0
     
-    train = eval_loss_report(train_X, Kinetics, train_neighbor_vector, train_gene_number, sample_number;
-        neighbor_number = neighbor_number, λ = λ, dt = dt)
+    # Find point far away from the gaussian point
+    kdTree = KDTree(X)
+    grid_idxs, _ = knn(kdTree, gridpoints', 10)
+    idx_choice = sort(unique(vcat(grid_idxs...)))
     
-    println("Epoch: $epoch  Train: $(train)")
-    return train
+    # Find the sparse point
+    _, density_dists = knn(kdTree, X[:, idx_choice], 10)
+    density_kernel = gaussian_kernel.(density_dists; mu = 0, sigma = 0.5)
+    density_kernel = sum.(density_kernel)
+    
+    # Save sparse point region
+    sparse_point = density_kernel .< percentile(density_kernel, 15)
+    sparse_idx = idx_choice[sparse_point]
+    
+    # Add points in dense region
+    dense_number = sample_number - length(sparse_idx)
+    dense_idx = rand(reshape(1:ncells, :)[1:ncells .∉ Ref(sparse_idx)], dense_number)
+    
+    # Merge point
+    idx_choice = vcat(sparse_idx, dense_idx)
+    
+    return idx_choice
 end
