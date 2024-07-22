@@ -30,7 +30,7 @@ end
 
 Flux.@functor SpatialDense
 
-function (l::SpatialDense)(x)
+function (l::SpatialDense)(x::AbstractArray)
     σ = NNlib.fast_act(l.σ, x)
     xT = Flux._match_eltype(l, x)
     output = NNlib.batched_mul(l.weight, xT)

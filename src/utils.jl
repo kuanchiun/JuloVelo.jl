@@ -1,44 +1,158 @@
-function filter_gene(data::JuloVeloObject; criteria::AbstractFloat = 0.5)
-    # Check if genes are filter first
-    if ~isnothing(data.bad_correlation_genes)
-        @info "Already filtered genes, do nothing"
-        return data
+function normalize(adata::Muon.AnnData; use_raw = false)
+    # Check if already normalize
+    if haskey(adata.layers, "norm_u") || haskey(adata.layers, "norm_s")
+        @info "Already normalized unspliced and spliced count"
+        return adata
     end
     
-    c = data.c
-    u = data.u
-    s = data.s
-    genes = data.genes
-    datatype = data.datatype
-    
-    #Filter genes using correlation between unspliced and spliced pattern
-    gene_correlation = corspearman.(eachrow(u), eachrow(s)) # Get correlation between u/s
-    
-    pass = gene_correlation .>= criteria # Find genes that have good correlation
-    fail = gene_correlation .< criteria # Find genes that habe bad correlation
-    
-    pass_genes = genes[pass]
-    bad_correlation_genes = genes[fail]
-    u = u[pass, :]
-    s = s[pass, :]
-    if datatype == "multi"
-        c = c[pass, :]
-    end
-    
-    data.temp_u = u
-    data.temp_s = s
-    data.bad_correlation_genes = bad_correlation_genes
-    data.temp_genes = pass_genes
-    if datatype == "multi"
-        data.temp_c = c
+    # If use raw count
+    if use_raw
+        # Check unspliced and spliced in adata.layers
+        if ~haskey(adata.layers, "spliced") || ~haskey(adata.layers, "unspliced")
+            throw(error("Could not find 'unspliced' or 'spliced' in adata.layer"))
+        else
+            # Extract matrix
+            u = permutedims(Matrix{Float32}(adata.layers["unspliced"]), (2, 1))
+            s = permutedims(Matrix{Float32}(adata.layers["spliced"]), (2, 1))
+        end
     else
-        data.temp_c = nothing
+        # Check Mu and Ms in adata.layers
+        if ~haskey(adata.layers, "Mu") || ~haskey(adata.layers, "Ms")
+            throw(error("Could not find 'Mu' or 'Ms' in adata.layer"))
+        else
+            # Extract matrix
+            u = permutedims(adata.layers["Mu"], (2, 1))
+            s = permutedims(adata.layers["Ms"], (2, 1))
+        end
     end
-        
-    @info "$(length(data.bad_correlation_genes)) genes are filtered due to low correlation between unspliced and spliced RNA"
-    @info "See .bad_correlation_genes for details"
     
-    return data
+    # Store max value
+    u_max = vec(maximum(u, dims = 2))
+    s_max = vec(maximum(s, dims = 2))
+    
+    # Normalization
+    u = mapslices(x -> x ./ (maximum(x) + eps(Float32)), u, dims = 2)
+    s = mapslices(x -> x ./ (maximum(x) + eps(Float32)), s, dims = 2)
+    
+    # Write to anndata
+    adata.layers["norm_u"] = permutedims(u, (2, 1))
+    adata.layers["norm_s"] = permutedims(s, (2, 1))
+    adata.var[!, "u_max"] = u_max
+    adata.var[!, "s_max"] = s_max
+    
+    return adata
+end
+
+function normalize(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; use_raw = false)
+    # RNA normalize
+    normalize(adata_rna; use_raw = use_raw)
+    
+    # Check if already normalize
+    if haskey(adata_atac.layers, "norm_c")
+        @info "Already normalized ATAC count"
+        return adata
+    end
+    
+    # Extract matrix
+    c = permutedims(Matrix{Float32}(adata_atac.X), (2, 1))
+    
+    # ATAC normalization
+    c = mapslices(x -> x ./ (maximum(x) + eps(Float32)), c, dims = 2)
+    
+    # Write to anndata
+    adata_atac.layers["norm_c"] = permutedims(c, (2, 1))
+    
+    return adata_rna, adata_atac
+end
+
+function filter_and_gene_kinetics_predetermination(adata::Muon.AnnData; 
+    filter_criteria::AbstractFloat = 0.5f0,
+    pseudotime::AbstractString = "dpt_pseudotime", 
+    clusters::AbstractString = "leiden", 
+    root::AbstractString = "iroot", 
+    cluster_correlation_criteria::AbstractFloat = 0.3f0, 
+    pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
+    overwrite::Bool = false)
+
+    filter_genes(adata; 
+        filter_criteria = filter_criteria, 
+        overwrite = overwrite)
+
+    gene_kinetics_predetermination(adata; 
+        pseudotime = pseudotime, 
+        clusters = clusters, 
+        root = root, 
+        cluster_correlation_criteria = cluster_correlation_criteria, 
+        pseudotime_correlation_criteria = pseudotime_correlation_criteria, 
+        overwrite = overwrite)
+
+    return adata
+end
+
+function filter_and_gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; 
+    filter_criteria::AbstractFloat = 0.5f0,
+    pseudotime::AbstractString = "dpt_pseudotime", 
+    clusters::AbstractString = "leiden", 
+    root::AbstractString = "iroot", 
+    cluster_correlation_criteria::AbstractFloat = 0.3f0, 
+    pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
+    overwrite::Bool = false)
+
+    filter_genes(adata_rna; 
+        filter_criteria = filter_criteria, 
+        overwrite = overwrite)
+
+    gene_kinetics_predetermination(adata_rna, adata_atac; 
+        pseudotime = pseudotime, 
+        clusters = clusters, 
+        root = root, 
+        cluster_correlation_criteria = cluster_correlation_criteria, 
+        pseudotime_correlation_criteria = pseudotime_correlation_criteria, 
+        overwrite = overwrite)
+
+    return adata_rna, adata_atac
+end
+
+function filter_genes(adata::Muon.AnnData; 
+    filter_criteria::AbstractFloat = 0.5f0, overwrite::Bool = false)
+    # Check if genes are already filtered
+    if "bad_correlation_genes" in names(adata.var)
+        if overwrite
+            @info "Warning! Overwrite bad_correlation_genes in adata.var"
+        else
+            @info "Already filtered genes"
+            @info "Use overwrite = true to filter genes again if you want"
+            return adata
+        end
+    end
+
+    # Check if norm_u and norm_s in adata.layer
+    if ~haskey(adata.layers, "norm_u") || ~haskey(adata.layers, "norm_s")
+        @info "Could not find \"norm_u\" or \"norm_s\" in adata.layer"
+        @info "Please use normalize() first"
+        return adata
+    end
+
+    # Extract data
+    u = permutedims(adata.layers["norm_u"], (2, 1))
+    s = permutedims(adata.layers["norm_s"], (2, 1))
+    genes = Array{AbstractString}(adata.var_names)
+
+    # Filter genes using Spearman correlation between norm_u and norm_s
+    gene_correlation = corspearman.(eachrow(u), eachrow(s))
+
+    # Find genes that pass or fail on criteria
+    pass_gene_index = gene_correlation .>= filter_criteria
+    fail_gene_index = gene_correlation .< filter_criteria
+
+    # Write to anndata
+    adata.var[!, "bad_correlation_genes"] = fail_gene_index
+
+    # info for bad correlation genes
+    @info "$(sum(fail_gene_index)) genes are filtered due to low correlation between norm_u and norm_s"
+    @info "See adata.var[!, \"bad_correlation_genes\"] for details"
+
+    return adata
 end
 
 function find_neighbor(X::AbstractArray, neighbor_number::Int, ngenes::Int)
@@ -47,14 +161,14 @@ function find_neighbor(X::AbstractArray, neighbor_number::Int, ngenes::Int)
     # Calculate Nearest Neighbor for each cell in each gene
     for i in 1:ngenes
         kdTree = KDTree(X[:, :, i])
-        idxs, dists = knn(kdTree, X[:, :, i], neighbor_number + 1, true)
+        idxs, _ = knn(kdTree, X[:, :, i], neighbor_number + 1, true)
         NN[:, :, i] = reduce(vcat, transpose.(idxs))[:, 2:end]
     end
 
     return NN
 end
 
-function calculate_neighbor_vector(X, ngenes::Int, sample_number::Int, neighbor_number::Int)
+function calculate_neighbor_vector(X::AbstractArray, ngenes::Int, sample_number::Int; neighbor_number::Int = 30)
     NN = find_neighbor(X, neighbor_number, ngenes)
     repeat_idx = transpose(reduce(hcat, [repeat([i], neighbor_number) for i in 1:sample_number]))
     
@@ -65,10 +179,10 @@ function calculate_neighbor_vector(X, ngenes::Int, sample_number::Int, neighbor_
     return neighbor_vector
 end
 
-function to_device(train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector::AbstractArray; use_gpu = true)
+function to_device(train_X::AbstractArray, Kinetics::Chain, train_neighbor_vector::AbstractArray; use_gpu::Bool = true)
     if use_gpu
-        use_cuda = CUDA.functional()
-        if use_cuda
+        # Check CUDA is functional
+        if CUDA.functional()
             device = gpu
             @info "Training on gpu"
         else
@@ -82,42 +196,47 @@ function to_device(train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector
     end
     
     train_X = train_X |> device
-    Kinetic = Kinetic |> device
+    Kinetics = Kinetics |> device
     train_neighbor_vector = train_neighbor_vector |> device
     
-    return train_X, Kinetic, train_neighbor_vector
+    return train_X, Kinetics, train_neighbor_vector
 end
 
-function to_celldancer(data::JuloVeloObject; datapath = "")
-    # Get information
-    ncells = data.ncells
-    ngenes = data.train_genes_number
-    train_genes = data.train_genes
-    train_genes_number = data.train_genes_number
-    X = data.X
-    velocity = data.param["velocity"]
-    embedding = data.embedding
-    Kinetic = data.param["velocity_model"]
-    kinetic = Kinetic(X)
-    celltype = isnothing(data.celltype) ? data.clusters : data.celltype
+round4(x::AbstractFloat)::AbstractFloat = round(x, digits = 4)
+
+function to_cellDancer(adata::Muon.AnnData; datapath::AbstractString = "", celltype = "clusters", basis = "umap")
+    # Extract data
+    X = adata.uns["X"]
+    kinetics = adata.uns["kinetics"]
+    velocity = adata.uns["velocity"]
+    embedding = adata.obsm["X_$basis"]
+    celltype = Array{AbstractString}(adata.obs[!, celltype])
+    genes = Array{AbstractString}(adata.var_names)
+    train_genes = genes[adata.var[!, "train_genes"]]
+    
+    # Get ncells and ngenes
+    _, ncells, ngenes = size(X)
+    
     # Create cell index
     cellindex = collect(range(0, ncells - 1))
     cellindex = string.(cellindex);
     cellindex = repeat(cellindex, ngenes)
-    # Create basic information for celldancer
-    use_genes = [train_genes[i] for i in 1:train_genes_number for j in 1:ncells]
+    
+    # Create basic information for cellDancer
+    use_genes = [train_genes[i] for i in 1:ngenes for j in 1:ncells]
     u = reduce(vcat, X[1, :, :])
     s = reduce(vcat, X[2, :, :])
     û = reduce(vcat, X[1, :, :] + velocity[1, :, :])
     ŝ = reduce(vcat, X[2, :, :] + velocity[2, :, :])
-    α = reduce(vcat, kinetic[1, :, :])
-    β = reduce(vcat, kinetic[2, :, :])
-    γ = reduce(vcat, kinetic[3, :, :])
-    loss = repeat([0.05], ncells * train_genes_number)
-    cell_name = ["cell_$j" for i in 1:train_genes_number for j in 1:ncells]
-    celltypes = repeat(celltype, train_genes_number)
-    embedding1 = repeat(embedding[:, 1], train_genes_number)
-    embedding2 = repeat(embedding[:, 2], train_genes_number)
+    α = reduce(vcat, kinetics[1, :, :])
+    β = reduce(vcat, kinetics[2, :, :])
+    γ = reduce(vcat, kinetics[3, :, :])
+    loss = repeat([0.05], ncells * ngenes)
+    cell_name = ["cell_$j" for i in 1:ngenes for j in 1:ncells]
+    celltypes = repeat(celltype, ngenes)
+    embedding1 = repeat(embedding[:, 1], ngenes)
+    embedding2 = repeat(embedding[:, 2], ngenes)
+    
     # Create basic table for celldancer
     table = hcat(
             cellindex,
@@ -136,20 +255,35 @@ function to_celldancer(data::JuloVeloObject; datapath = "")
             embedding2
         )
     
-    index = ["cellIndex", "gene_name", "unsplice", "splice", "unsplice_predict", "splice_predict", "alpha", "beta", "gamma", "loss", "cellID", "clusters", "embedding1", "embedding2"]
+    index = ["cellIndex", 
+        "gene_name", 
+        "unsplice", 
+        "splice", 
+        "unsplice_predict", 
+        "splice_predict", 
+        "alpha", 
+        "beta", 
+        "gamma", 
+        "loss", 
+        "cellID", 
+        "clusters", 
+        "embedding1", 
+        "embedding2"]
+    
     # Add velocity embedding information if existed
-    if haskey(data.param, "velocity_embedding")
-        velocity_embedding = data.param["velocity_embedding"]
-        velocity1 = repeat(velocity_embedding[:, 1], train_genes_number)
-        velocity2 = repeat(velocity_embedding[:, 2], train_genes_number)
+    if haskey(adata.obsm, "velocity_$basis")
+        velocity_embedding = adata.obsm["velocity_$basis"]
+        velocity1 = repeat(velocity_embedding[:, 1], ngenes)
+        velocity2 = repeat(velocity_embedding[:, 2], ngenes)
         table = hcat(table, velocity1, velocity2)
         push!(index, "velocity1")
         push!(index, "velocity2")
     end
+    
     # Add pseudotime information if existed
-    if haskey(data.param, "pseudotime")
-        pseudotime = data.param["pseudotime"]
-        pseudotime = repeat(pseudotime, train_genes_number)
+    if "pseudotime" in names(adata.obs)
+        pseudotime = adata.obs[!, "pseudotime"]
+        pseudotime = repeat(pseudotime, ngenes)
         table = hcat(table, pseudotime)
         push!(index, "pseudotime")
     end
@@ -157,69 +291,5 @@ function to_celldancer(data::JuloVeloObject; datapath = "")
     dataframe = DataFrame(table, index)
     CSV.write(joinpath(datapath, "JuloVelo_result.csv"), dataframe)
     
-    return nothing
-end
-
-function to_anndata(data::JuloVeloObject)
-    # Extract information
-    X = data.X
-    genes = data.train_genes
-    embedding = data.embedding
-    velocity_embedding = data.param["velocity_embedding"]
-    model = data.param["velocity_model"]
-    velocity = data.param["velocity"]
-    celltype = data.celltype
-    leiden = data.clusters
-    if haskey(data.param, "JuloVelo_pseudotime")
-        pseudotime = data.param["JuloVelo_pseudotime"]
-    end
-    # Get spliced and unspliced RNA
-    u = X[1, :, :]
-    s = X[2, :, :]
-    cellID = ["cell_$i" for i in 1:data.ncells]
-    # Get kinetics parameters
-    kinetics = model(X)
-    α = kinetics[1, :, :]
-    β = kinetics[2, :, :]
-    γ = kinetics[3, :, :]
-    
-    # Get velocity
-    û = velocity[1, :, :]
-    ŝ = velocity[2, :, :]
-    # Create Anndata
-    adata = AnnData(X = s, obs_names = cellID, var_names = genes)
-    # Add dynamo required element to adata
-    adata.obs[!, "clusters"] = celltype
-    adata.obs[!, "leiden"] = leiden
-    adata.layers["M_s"] = s
-    adata.layers["X_spliced"] = s
-    adata.layers["M_u"] = u
-    adata.layers["X_unspliced"] = u
-    adata.layers["alpha"] = α
-    adata.layers["beta"] = β
-    adata.layers["gamma"] = γ
-    adata.layers["velocity_U"] = û
-    adata.layers["velocity_S"] = ŝ
-    adata.obsm["X_ebd"] = embedding
-    adata.obsm["velocity_ebd"] = velocity_embedding
-    if haskey(data.param, "JuloVelo_pseudotime")
-        adata.obs[!, "pseudotime"] = pseudotime
-    end
-
-    if ~isnothing(data.train_c)
-        c = data.train_c'
-        adata.layers["M_c"] = c
-    end
-    
-    if any(ismissing.(adata.obsm["velocity_ebd"]))
-        adata.obsm["velocity_ebd"] = replace(adata.obsm["velocity_ebd"], missing => NaN)
-    end
-
-    return adata
-end
-
-function write_adata(adata::Muon.AnnData; filename::AbstractString = "JuloVelo")
-    writeh5ad("$filename.h5ad", adata)
-
     return nothing
 end

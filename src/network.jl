@@ -1,11 +1,25 @@
-function build_velocity_model(data::JuloVeloObject)
-    modelpath = joinpath(pkgdir(JuloVelo), "models")
-    gene_kinetics = data.gene_kinetics
+function build_velocity_model(adata::Muon.AnnData)
+    # Check if gene are pre-determined kinetics
+    if ~("train_genes" in names(adata.var))
+        @info "Could not find \"train_genes\" in adata.var"
+        @info "Please use gene_kinetics_predetermination() first"
+        return adata
+    end
     
+    # Set pre-trained model path
+    modelpath = joinpath(pkgdir(JuloVelo), "models")
+    
+    # Load gene kinetics
+    gene_kinetics = deepcopy(adata.var[!, "gene_kinetics"])
+    gene_kinetics = filter!(x -> x != "/", gene_kinetics)
+    
+    
+    # Load pre-trained model
     BSON.@load joinpath(modelpath, "Circle.bson") circle
     BSON.@load joinpath(modelpath, "Induction.bson") Induction
     BSON.@load joinpath(modelpath, "Repression.bson") Repression
     
+    # Initialize model structure
     l1_weight = Array{Float32}(undef, 100, 2, 0)
     l2_weight = Array{Float32}(undef, 100, 100, 0)
     l3_weight = Array{Float32}(undef, 3, 100, 0)
@@ -13,6 +27,7 @@ function build_velocity_model(data::JuloVeloObject)
     l2_bias = Array{Float32}(undef, 100, 1, 0)
     l3_bias = Array{Float32}(undef, 3, 1, 0)
     
+    # Assign pre-trained model weight and bias for each gene
     for kinetics in gene_kinetics
         if kinetics == "circle"
             l1_weight = cat(l1_weight, circle.layers.l1.weight, dims = 3)
@@ -38,20 +53,20 @@ function build_velocity_model(data::JuloVeloObject)
         end
     end
     
-    Kinetic = Chain(
+    # Create model
+    Kinetics = Chain(
         l1 = SpatialDense(l1_weight, l1_bias, leakyrelu),
         l2 = SpatialDense(l2_weight, l2_bias, leakyrelu),
         l3 = SpatialDense(l3_weight, l3_bias, sigmoid)
     )
     
-    data.param["velocity_model"] = Kinetic
+    # Info for model
+    @info "Successfully initialize velocity model"
     
-    @info "Successfully initialize velocity model, see param.velocity_model for details"
-    
-    return data
+    return Kinetics
 end
 
-function optimizer_setting(Kinetic::Chain, learning_rate::AbstractFloat, optimizer::AbstractString)
+function optimizer_setting(Kinetics::Chain, learning_rate::AbstractFloat, optimizer::AbstractString)
     if lowercase(optimizer) == "adam"
         rule = Optimisers.Adam(learning_rate)
         @info "Training with Adam Optimizer"
@@ -59,43 +74,61 @@ function optimizer_setting(Kinetic::Chain, learning_rate::AbstractFloat, optimiz
         rule = Optimisers.RAdam(learning_rate)
         @info "Training with RAdam Optimizer"
     else
-        throw(ArgumentError("Optimizer only support adam and radam"))
+        throw(ArgumentError("Optimizer only supports adam and radam"))
     end
     
-    opt_state = Optimisers.setup(rule, Kinetic)
+    opt_state = Optimisers.setup(rule, Kinetics)
     
     return opt_state
 end
 
-function train(data::JuloVeloObject; epochs::Int = 100, sample_number::Int = 2400, neighbor_number::Int = 30, learning_rate::AbstractFloat = 0.001, optimizer = "adam", λ::AbstractFloat = 0.004, dt::AbstractFloat = 0.5f0, logger = true, checktime::Int = 5)
-    train_X = data.train_X
-    ncells = data.ncells
-    train_genes_number = data.train_genes_number
-    Kinetic = data.param["velocity_model"]
-    use_cuda = CUDA.functional()
-    
-    train_neighbor_vector = calculate_neighbor_vector(train_X, train_genes_number, sample_number, neighbor_number)
-    train_X, Kinetic, train_neighbor_vector = to_device(train_X, Kinetic, train_neighbor_vector)
-    opt_state = optimizer_setting(Kinetic, learning_rate, optimizer)
-    
+function train(adata::Muon.AnnData, Kinetics::Chain; 
+    epochs::Int = 100, 
+    neighbor_number::Int = 30, 
+    learning_rate::AbstractFloat = 0.0001f0,
+    optimizer::AbstractString = "adam", 
+    λ::AbstractFloat = 0.004f0, 
+    dt::AbstractFloat = 0.5f0, 
+    logger::Bool = true, 
+    checktime::Int = 5, 
+    use_gpu::Bool = true)
+
+    # Extract data
+    train_X = adata.uns["train_X"]
+    _, sample_number, train_gene_number = size(train_X)
+
+    # Create neighbor vector
+    train_neighbor_vector = calculate_neighbor_vector(train_X, train_gene_number, sample_number; neighbor_number = neighbor_number)
+        
+    # Send data to device
+    train_X, Kinetics, train_neighbor_vector = to_device(train_X, Kinetics, train_neighbor_vector; use_gpu = use_gpu)
+
+    # Set optimizer state
+    opt_state = optimizer_setting(Kinetics, learning_rate, optimizer)
+
+    # Set logger
     if logger
         savepath = joinpath(pwd(), "saves/")
         tblogger = TBLogger(savepath, tb_overwrite)
         set_step_increment!(tblogger, 0)
         @info "TensorBoard logging at \"$(savepath)\""
     end
-    
+
+    # Train
     @info "Start training"
     for epoch in 0:epochs
         if epoch == 0
-            report(epoch, train_X, Kinetic, train_neighbor_vector, train_genes_number, neighbor_number, sample_number, λ, dt)
+            report(epoch, train_X, Kinetics, train_neighbor_vector, train_gene_number, sample_number; 
+                neighbor_number = neighbor_number, λ = λ, dt = dt)
             continue
         end
         
-        gs = Zygote.gradient(m -> eval_loss(train_X, m, train_neighbor_vector, neighbor_number, sample_number, λ, dt), Kinetic)
-        opt_state, Kinetic = Optimisers.update(opt_state, Kinetic, gs[1])
+        gs = Zygote.gradient(m -> eval_loss(train_X, m, train_neighbor_vector, sample_number;
+                neighbor_number = neighbor_number, λ = λ, dt = dt), Kinetics)
+        opt_state, Kinetics = Optimisers.update(opt_state, Kinetics, gs[1])
         
-        train_loss = report(epoch, train_X, Kinetic, train_neighbor_vector, train_genes_number, neighbor_number, sample_number, λ, dt)
+        train_loss = report(epoch, train_X, Kinetics, train_neighbor_vector, train_gene_number, sample_number; 
+            neighbor_number = neighbor_number, λ = λ, dt = dt)
         
         if logger
             set_step!(tblogger, epoch)
@@ -105,32 +138,35 @@ function train(data::JuloVeloObject; epochs::Int = 100, sample_number::Int = 240
         end
         
         if epoch % checktime == 0
-            let Kinetic = cpu(Kinetic)
-                data.param["velocity_model"] = Kinetic
+            let Kinetics = cpu(Kinetics)
+                BSON.@save joinpath(pwd(), "saves/Kinetics.bson") Kinetics
             end
-            @info "Model is updated in .param.velocity_model"
+            @info "Model is saved in saves/Kinetics.bson"
         end
         
         train_loss = nothing
-        test_loss = nothing
         gs = nothing
         GC.gc(true)
-        if use_cuda
+        if use_gpu
             CUDA.reclaim()
         end
     end
+
+    Kinetics = Kinetics |> cpu
+
+    return Kinetics
 end
 
-function forward(X::AbstractArray, Kinetic::Chain; dt = 0.05f0)
+function forward(X::AbstractArray, Kinetics::Chain; dt::AbstractFloat = 0.05f0)
     # Split data to unsplice and splice
     u = X[1, :, :]
     s = X[2, :, :]
 
     # Predict kinetic
-    kinetic = Kinetic(X)
+    kinetics = Kinetics(X)
 
     # Estimate du, ds
-    du, ds = kinetic_equation(u, s, kinetic)
+    du, ds = kinetics_equation(u, s, kinetics)
 
     # Multiply by dt
     du = du .* dt
@@ -144,17 +180,19 @@ function forward(X::AbstractArray, Kinetic::Chain; dt = 0.05f0)
     return dt_vector
 end
 
-function eval_loss(X::AbstractArray, Kinetic::Chain, neighbor_vector::AbstractArray, neighbor_number::Int, sample_number::Int, λ::AbstractFloat, dt::AbstractFloat)
+function eval_loss(X::AbstractArray, Kinetics::Chain, neighbor_vector::AbstractArray, sample_number::Int;
+        neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
+    
     # Predict du, ds
-    dt_vector = forward(X, Kinetic)
+    dt_vector = forward(X, Kinetics)
     
     # Calculate cosine similarity loss
-    cos_loss = cosine_loss(neighbor_vector, dt_vector, neighbor_number, sample_number)
+    cos_loss = cosine_loss(neighbor_vector, dt_vector, sample_number; neighbor_number = neighbor_number)
     
     # L2 penalty
-    penalty = (l2_penalty(Kinetic.layers.l1.weight) + 
-    l2_penalty(Kinetic.layers.l2.weight) + 
-    l2_penalty(Kinetic.layers.l3.weight)) * λ
+    penalty = (l2_penalty(Kinetics.layers.l1.weight) + 
+    l2_penalty(Kinetics.layers.l2.weight) + 
+    l2_penalty(Kinetics.layers.l3.weight)) * λ
     
     
     # loss
@@ -164,28 +202,32 @@ function eval_loss(X::AbstractArray, Kinetic::Chain, neighbor_vector::AbstractAr
     return loss
 end
 
-function eval_loss_report(X::AbstractArray, Kinetic::Chain, neighbor_vector::AbstractArray, train_genes_number::Int, neighbor_number::Int, sample_number::Int, λ::AbstractFloat, dt::AbstractFloat)
+function eval_loss_report(X::AbstractArray, Kinetics::Chain, neighbor_vector::AbstractArray, train_gene_number::Int, sample_number::Int;
+        neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
+    
     # Predict du, ds
-    dt_vector = forward(X, Kinetic)
+    dt_vector = forward(X, Kinetics)
     
     # Calculate cosine similarity loss
-    cos_loss = cosine_loss(neighbor_vector, dt_vector, neighbor_number, sample_number)
+    cos_loss = cosine_loss(neighbor_vector, dt_vector, sample_number; neighbor_number = neighbor_number)
     
     # Calculate average cosine similarity
-    AvgMeanCos = 1 - (cos_loss / (train_genes_number * sample_number))
+    AvgMeanCos = 1 - (cos_loss / (train_gene_number * sample_number))
     
     # L2 penalty
-    penalty = (l2_penalty(Kinetic.layers.l1.weight) + 
-    l2_penalty(Kinetic.layers.l2.weight) + 
-    l2_penalty(Kinetic.layers.l3.weight)) * λ
+    penalty = (l2_penalty(Kinetics.layers.l1.weight) + 
+    l2_penalty(Kinetics.layers.l2.weight) + 
+    l2_penalty(Kinetics.layers.l3.weight)) * λ
     
     return (cos_loss = cos_loss |> round4, penalty = penalty |> round4, AvgMeanCos = AvgMeanCos |> round4)
 end
 
-round4(x::AbstractFloat)::AbstractFloat = round(x, digits = 4)
-
-function report(epoch::Int, train_X::AbstractArray, Kinetic::Chain, train_neighbor_vector::AbstractArray, train_genes_number::Int, neighbor_number::Int, sample_number::Int, λ::AbstractFloat, dt::AbstractFloat) 
-    train = eval_loss_report(train_X, Kinetic, train_neighbor_vector, train_genes_number, neighbor_number, sample_number, λ, dt)
+function report(epoch::Int, train_X::AbstractArray, Kinetics::Chain, train_neighbor_vector::AbstractArray, train_gene_number::Int, sample_number::Int;
+        neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
+    
+    train = eval_loss_report(train_X, Kinetics, train_neighbor_vector, train_gene_number, sample_number;
+        neighbor_number = neighbor_number, λ = λ, dt = dt)
+    
     println("Epoch: $epoch  Train: $(train)")
     return train
 end

@@ -1,7 +1,7 @@
 name = "JuloVelo"
 uuid = "fb5b9b97-769b-420c-af3f-35205bf5fcdb"
 authors = ["Kuan-Chiun Tung <tungsega@yahoo.com.tw>"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 BSON = "fbb218c0-5317-5bc6-957e-2ee96dd4b1f0"

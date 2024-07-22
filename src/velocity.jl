@@ -1,16 +1,30 @@
-function velocity_estimation(data::JuloVeloObject; dt::AbstractFloat = 0.5f0)
-    ncells = data.ncells
-    ngenes = data.train_genes_number
-    u = data.train_u'
-    s = data.train_s'
-    X = data.X
-    Kinetic = data.param["velocity_model"]
+function kinetics_equation(u::AbstractArray, s::AbstractArray, kinetics::AbstractArray)
+    α = kinetics[1, :, :]
+    β = kinetics[2, :, :]
+    γ = kinetics[3, :, :]
+
+    du = α .* 2.0f0 .- β .* u
+    ds = β .* u .- γ .* s
+
+    return du, ds
+end
+
+function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractFloat = 0.5f0)
+    # Extract data
+    X = adata.uns["X"]
+    u = X[1, :, :]
+    s = X[2, :, :]
     
-    kinetics = Kinetic(X)
+    # Get ncells and ngenes
+    _, ncells, ngenes = size(X)
     
-    du, ds = kinetic_equation(u, s, kinetics)
+    # Calculate kinetics
+    kinetics = Kinetics(X)
     
-    # Multiply by dt
+    # Calculate du and ds
+    du, ds = kinetics_equation(u, s, kinetics)
+    
+    # Multiply du, ds by dt
     du = du .* dt
     ds = ds .* dt
     
@@ -19,58 +33,13 @@ function velocity_estimation(data::JuloVeloObject; dt::AbstractFloat = 0.5f0)
     ŝ = permutedims(reshape(ds, ncells, 1, ngenes), (2, 1, 3))
     X̂ = vcat(û, ŝ) .+ eps(Float32)
     
-    data.param["velocity"] = X̂
-    data.param["kinetics"] = kinetics
+    # Write to anndata
+    adata.uns["velocity"] = X̂
+    adata.uns["kinetics"] = kinetics
     
-    @info "Velocity saved in param.velocity"
-    return data
-end 
-
-function kinetic_equation(u::AbstractArray, s::AbstractArray, kinetic::AbstractArray)
-    α = kinetic[1, :, :]
-    β = kinetic[2, :, :]
-    γ = kinetic[3, :, :]
-
-    du = α .* 2.0f0 .- β .* u
-    ds = β .* u .- γ .* s
-
-    return du, ds
-end
-
-function compute_cell_velocity(data::JuloVeloObject; pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200)
-    if pipeline_type == "JuloVelo"
-        X = data.X
-        embedding = data.embedding
-        velocity = data.param["velocity"]
-    
-        spliced_matrix = X[2, :, :]'
-        velocity_spliced_matrix = velocity[2, :, :]'
-        velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
-    
-        neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
-        velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
-    
-        data.param["velocity_embedding"] = velocity_embedding
-    elseif pipeline_type == "celldancer"
-        to_celldancer(data)
-        
-        py"""
-        import pandas as pd
-        import celldancer as cd
-
-        JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
-        JuloVelo_df = cd.compute_cell_velocity(cellDancer_df=JuloVelo_df, projection_neighbor_choice='gene', expression_scale='power10', projection_neighbor_size=10, speed_up=(100,100))
-        
-        JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
-        """
-        
-        ncells = data.ncells
-        JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
-        velocity_embedding = Matrix(JuloVelo_df[1:ncells, ["velocity1", "velocity2"]])
-        data.param["velocity_embedding"] = velocity_embedding
-    end
-    
-    return data
+    # Info for velocity and kinetics
+    @info "Velocity saved in adata.uns[\"velocicy\"]"
+    @info "kinetics saved in adata.uns[\"kinetics\"]"
 end
 
 function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix)
@@ -149,12 +118,51 @@ function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_ma
     return velocity_embedding
 end
 
-function estimate_pseudotime(data::JuloVeloObject, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8)
+function compute_cell_velocity(adata::Muon.AnnData; 
+        pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200, basis = "umap")
+    
+    if pipeline_type == "JuloVelo"
+        X = adata.uns["X"]
+        embedding = adata.obsm["X_$basis"]
+        velocity = adata.uns["velocity"]
+        
+        spliced_matrix = X[2, :, :]'
+        velocity_spliced_matrix = velocity[2, :, :]'
+        velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
+    
+        neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
+        velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
+        
+        adata.obsm["velocity_$basis"] = velocity_embedding
+        
+    elseif pipeline_type == "cellDancer"
+        to_cellDancer(adata)
+        
+        py"""
+        import pandas as pd
+        import celldancer as cd
+
+        JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
+        JuloVelo_df = cd.compute_cell_velocity(cellDancer_df=JuloVelo_df, projection_neighbor_choice='gene', expression_scale='power10', projection_neighbor_size=200, speed_up=(100,100))
+        
+        JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
+        """
+        
+        ncells = size(adata.uns["X"])[2]
+        JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
+        velocity_embedding = Matrix(JuloVelo_df[1:ncells, ["velocity1", "velocity2"]])
+        adata.obsm["velocity_$basis"] = velocity_embedding
+    end
+    
+    return adata
+end
+
+function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8)
     if isnothing(n_path)
         throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
     end
     
-    to_celldancer(data)
+    to_cellDancer(adata)
     
     @info "Start estimate pseudotime, it may take a long time."
     
@@ -185,10 +193,36 @@ function estimate_pseudotime(data::JuloVeloObject, n_path::Union{Int, Nothing} =
     JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
     """
     
-    ncells = data.ncells
+    ncells = size(adata.uns["X"])[2]
     JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
     pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
-    data.param["JuloVelo_pseudotime"] = pseudotime
+    adata.obs[!, "pseudotime"] = pseudotime
     
-    return data
+    return adata
+end
+
+function kinetics_embedding(adata::Muon.AnnData; basis::AbstractString = "pca", min_dist::AbstractFloat = 0.5, n_neighbors::Int = 50)
+    if ~haskey(adata.uns, "kinetics")
+        @info "Could not find \"kinetics\" in adata.uns"
+        @info "Please run velocity_estimation() first"
+        return adata
+    else
+        kinetics = adata.uns["kinetics"]
+    end
+
+    α = kinetics[1, :, :]'
+    β = kinetics[2, :, :]'
+    γ = kinetics[3, :, :]'
+    embedding = vcat(α, β, γ)
+    
+    if basis == "pca"
+        M = MultivariateStats.fit(PCA, embedding; maxoutdim = 2)
+        kinetics_embedding = predict(M, embedding)'
+    elseif basis == "umap"
+        kinetics_embedding = umap(embedding; min_dist = min_dist, n_neighbors = n_neighbors)'
+    end
+    
+    adata.obsm["kinetics_$basis"] = kinetics_embedding
+    
+    return adata
 end

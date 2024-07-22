@@ -1,4 +1,5 @@
-function plot_kinetics_embedding(data::JuloVeloObject; 
+function plot_kinetics_embedding(adata::Muon.AnnData;
+        label = "clusters",
         basis::AbstractString = "pca", 
         min_dist::AbstractFloat = 0.5, 
         n_neighbors::Int = 50, 
@@ -14,13 +15,13 @@ function plot_kinetics_embedding(data::JuloVeloObject;
 
     theme(:vibrant, framestyle = :axes, grid = true, markersize = 3, linewidth = 1.4, palette = :tab20) 
 
-    if ~haskey(data.param, "kinetics_embedding")
-        kinetics_embedding(data; basis = basis, min_dist = min_dist, n_neighbors = n_neighbors)
+    if ~haskey(adata.obsm, "kinetics_$basis")
+        kinetics_embedding(adata; basis = basis, min_dist = min_dist, n_neighbors = n_neighbors)
     else
-        kinetics_embedding = data.param["kinetics_embedding"]
+        kinetics_embedding = adata.obsm["kinetics_$basis"]
     end
 
-    celltype = isnothing(data.celltype) ? data.clusters : data.celltype
+    celltype = label in names(adata.obs) ? adata.obs[!, label] : adata.obs[!, "leiden"]
     
     labels = sort(unique(celltype))
     p = scatter(size = figsize, fg_legend = :transparent, dpi = dpi) #

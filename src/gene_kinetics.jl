@@ -1,71 +1,168 @@
-function define_gene_kinetic(data::JuloVeloObject)
-    # Check if genes are filter first
-    if isnothing(data.bad_correlation_genes)
-        @info "uns.bad_correlation_genes is empty, filter gene first"
-        filter_gene(data)
+function gene_kinetics_predetermination(adata::Muon.AnnData; 
+    pseudotime::AbstractString = "dpt_pseudotime", 
+    clusters::AbstractString = "leiden", 
+    root::AbstractString = "iroot", 
+    cluster_correlation_criteria::AbstractFloat = 0.3f0, 
+    pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
+    overwrite = false)
+
+    # Check if genes are filtered
+    if ~("bad_correlation_genes" in names(adata.var))
+        @info "Could not find \"bad_correlation_genes\" in adata.var"
+        @info "Please use filter_genes() first"
+        return adata
     end
-    
-    if ~isnothing(data.bad_kinetics_genes)
-        @info "Already define kinetics for genes, do nothing"
-        return data
-    end
-    
-    c = data.temp_c
-    u = data.temp_u
-    s = data.temp_s
-    genes = data.temp_genes
-    pseudotime = data.pseudotime
-    clusters = data.clusters
-    root = data.root
-    datatype = data.datatype
-    
-    gene_kinetics = Array{String}(undef, 0)
-    pass = Array{Bool}(undef, 0)
-    fail = Array{Bool}(undef, 0)
-    for i in axes(genes, 1)
-        if datatype == "gex"
-            kinetics = define_gene_kinetic!(u[i, :], s[i, :], pseudotime, clusters, root)
-        elseif datatype == "multi"
-            kinetics = define_gene_kinetic!(c[i, :], u[i, :], s[i, :], pseudotime, clusters, root)
-        end
-        
-        if kinetics == "fail"
-            push!(pass, false)
-            push!(fail, true)
+    # Check if genes are already pre-determine kinetics
+    if "bad_kinetics_genes" in names(adata.var)
+        if overwrite
+            @info "Warning! Overwrite bad_kinetics_genes in adata.var"
         else
-            push!(pass, true)
-            push!(fail, false)
-            push!(gene_kinetics, kinetics)
+            @info "Already pre-determine gene kinetics"
+            @info "Use overwrite = true to pre-determine gene kinetics again if you want"
+            return adata
         end
     end
-    
-    if datatype == "multi"
-        c = c[pass, :]
-        data.train_c = c
+
+    # Extract data
+    u = permutedims(adata.layers["norm_u"], (2, 1))
+    s = permutedims(adata.layers["norm_s"], (2, 1))
+    pseudotime = adata.obs[!, pseudotime]
+    clusters = adata.obs[!, clusters]
+    root = string(adata.uns[root])
+
+    # Extract gene information
+    all_genes = Array{AbstractString}(adata.var_names)
+    bad_correlation_index = adata.var[!, "bad_correlation_genes"]
+
+    # Pre-determine gene kinetics
+    gene_kinetics = Array{String}(undef, 0)
+    bad_kinetics_index = Array{Bool}(undef, 0)
+    train_genes_index = Array{Bool}(undef, 0)
+
+    for i in axes(all_genes, 1)
+        if bad_correlation_index[i]
+            push!(bad_kinetics_index, false)
+            push!(train_genes_index, false)
+            push!(gene_kinetics, "/")
+        else
+            kinetics = gene_kinetics_predetermination!(u[i, :], s[i, :], pseudotime, clusters, root; 
+                cluster_correlation_criteria = cluster_correlation_criteria, 
+                pseudotime_correlation_criteria = pseudotime_correlation_criteria)
+            
+            if kinetics != "fail"
+                push!(bad_kinetics_index, false)
+                push!(train_genes_index, true)
+                push!(gene_kinetics, kinetics)
+            else
+                push!(bad_kinetics_index, true)
+                push!(train_genes_index, false)
+                push!(gene_kinetics, "/")
+            end
+        end
     end
-    u = u[pass, :]
-    s = s[pass, :]
-    pass_genes = genes[pass]
-    bad_kinetics_genes = genes[fail]
-    train_genes_number = length(pass_genes)
-    
-    data.train_u = u
-    data.train_s = s
-    data.train_genes = pass_genes
-    data.bad_kinetics_genes = bad_kinetics_genes
-    data.train_genes_number = train_genes_number
-    data.gene_kinetics = gene_kinetics
-    
-    @info "$(length(data.bad_kinetics_genes)) genes are filtered due to bad kinetics"
-    @info "See .bad_kinetics_genes for details"
-    
-    return data
+
+    # Write to anndata
+    adata.var[!, "bad_kinetics_genes"] = bad_kinetics_index
+    adata.var[!, "train_genes"] = train_genes_index
+    adata.var[!, "gene_kinetics"] = gene_kinetics
+
+    # info for bad kinetics genes and training genes
+    @info "$(sum(bad_kinetics_index)) genes are filtered due to bad kinetics"
+    @info "See adata.var[!, \"bad_kinetics_genes\"] for details"
+    @info "$(sum(train_genes_index)) genes are used to infer velocity"
+    @info "See adata.var[!, \"train_genes\"] for details"
+
+    return adata
 end
 
-function define_gene_kinetic!(u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::String)
+function gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; 
+    pseudotime::AbstractString = "dpt_pseudotime", 
+    clusters::AbstractString = "leiden", 
+    root::AbstractString = "iroot", 
+    cluster_correlation_criteria::AbstractFloat = 0.3f0, 
+    pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
+    chromatin_slope_criteria::AbstractFloat = 0.2f0, 
+    chromatin_intercept_criteria::AbstractFloat = 0.2f0,
+    overwrite = false)
+
+    # Check if genes are filtered
+    if ~("bad_correlation_genes" in names(adata_rna.var))
+        @info "Could not find \"bad_correlation_genes\" in adata_rna.var"
+        @info "Please use filter_genes() first"
+        return adata_rna
+    end
+    # Check if genes are already pre-determine kinetics
+    if "bad_kinetics_genes" in names(adata_rna.var)
+        if overwrite
+            @info "Warning! Overwrite bad_kinetics_genes in adata_rna.var"
+        else
+            @info "Already pre-determine gene kinetics"
+            @info "Use overwrite = true to pre-determine gene kinetics again if you want"
+            return adata_rna
+        end
+    end
+
+    # Extract data
+    c = permutedims(adata_atac.layers["norm_c"], (2, 1))
+    u = permutedims(adata_rna.layers["norm_u"], (2, 1))
+    s = permutedims(adata_rna.layers["norm_s"], (2, 1))
+    pseudotime = adata_rna.obs[!, pseudotime]
+    clusters = adata_rna.obs[!, clusters]
+    root = string(adata_rna.uns[root])
+
+    # Extract gene information
+    all_genes = Array{AbstractString}(adata_rna.var_names)
+    bad_correlation_index = adata_rna.var[!, "bad_correlation_genes"]
+
+    # Pre-determine gene kinetics
+    gene_kinetics = Array{String}(undef, 0)
+    bad_kinetics_index = Array{Bool}(undef, 0)
+    train_genes_index = Array{Bool}(undef, 0)
+
+    for i in axes(all_genes, 1)
+        if bad_correlation_index[i]
+            push!(bad_kinetics_index, false)
+            push!(train_genes_index, false)
+            push!(gene_kinetics, "/")
+        else
+            kinetics = gene_kinetics_predetermination!(c[i, :], u[i, :], s[i, :], pseudotime, clusters, root; 
+                cluster_correlation_criteria = cluster_correlation_criteria, 
+                pseudotime_correlation_criteria = pseudotime_correlation_criteria,
+                chromatin_slope_criteria = chromatin_slope_criteria, 
+                chromatin_intercept_criteria = chromatin_intercept_criteria)
+            
+            if kinetics != "fail"
+                push!(bad_kinetics_index, false)
+                push!(train_genes_index, true)
+                push!(gene_kinetics, kinetics)
+            else
+                push!(bad_kinetics_index, true)
+                push!(train_genes_index, false)
+                push!(gene_kinetics, "/")
+            end
+        end
+    end
+
+    # Write to anndata
+    adata_rna.var[!, "bad_kinetics_genes"] = bad_kinetics_index
+    adata_rna.var[!, "train_genes"] = train_genes_index
+    adata_rna.var[!, "gene_kinetics"] = gene_kinetics
+
+    # info for bad kinetics genes and training genes
+    @info "$(sum(bad_kinetics_index)) genes are filtered due to bad kinetics"
+    @info "See adata_rna.var[!, \"bad_kinetics_genes\"] for details"
+    @info "$(sum(train_genes_index)) genes are used to infer velocity"
+    @info "See adata_rna.var[!, \"train_genes\"] for details"
+
+    return adata_rna
+end
+
+function gene_kinetics_predetermination!(u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::AbstractString; 
+    cluster_correlation_criteria::AbstractFloat = 0.3f0, 
+    pseudotime_correlation_criteria::AbstractFloat = 0.2f0)
     # Cluster condition initialization
     cluster_kinetics = Array{Int}(undef, 0)
-    
+
     for cluster in Set(clusters)
         # Get information for each cluster
         cell_idx = findall(x -> x == cluster, clusters)
@@ -79,12 +176,12 @@ function define_gene_kinetic!(u::AbstractVector, s::AbstractVector, pseudotime::
         ts = linear_fit(cluster_pseudotime, cluster_s)
         
         # Filter if unspliced and spliced have non-sigificant correlation
-        if abs(us) < 0.3f0
+        if abs(us) < cluster_correlation_criteria
             continue
         end
         
         # Filter if pseudotime has non-sigificant correlation with unspliced and spliced
-        if abs(tu[2]) < 0.2f0 || abs(ts[2]) < 0.2f0 || tu[2]/ts[2] < 0
+        if abs(tu[2]) < pseudotime_correlation_criteria || abs(ts[2]) < pseudotime_correlation_criteria || tu[2]/ts[2] < 0
             continue
         end
         
@@ -100,10 +197,10 @@ function define_gene_kinetic!(u::AbstractVector, s::AbstractVector, pseudotime::
             push!(cluster_kinetics, -1)
         end
     end
-    
+
     # Check the number of different kinetics in total clusters
     cluster_kinetics = Set(cluster_kinetics)
-    
+
     if length(cluster_kinetics) == 0
         return "fail"
     elseif length(cluster_kinetics) == 2
@@ -115,10 +212,14 @@ function define_gene_kinetic!(u::AbstractVector, s::AbstractVector, pseudotime::
     end
 end
 
-function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::String)
+function gene_kinetics_predetermination!(c::AbstractVector, u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::AbstractString; 
+    cluster_correlation_criteria::AbstractFloat = 0.3f0, 
+    pseudotime_correlation_criteria::AbstractFloat = 0.2f0, 
+    chromatin_slope_criteria::AbstractFloat = 0.2f0, 
+    chromatin_intercept_criteria::AbstractFloat = 0.2f0)
     # Cluster condition initialization
     cluster_kinetics = Array{Int}(undef, 0)
-    
+
     for cluster in Set(clusters)
         # Get information for each cluster
         cell_idx = findall(x -> x == cluster, clusters)
@@ -134,16 +235,17 @@ function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractV
         cu = linear_fit(cluster_c, cluster_u)
         
         # Filter if unspliced and spliced have non-sigificant correlation
-        if abs(us) < 0.3f0
+        if abs(us) < cluster_correlation_criteria
             continue
         end
         
-        if cu[1] < 0.2f0 && cu[2] < 0.2f0 # slope or intercept > 0.2 in linear regression between chromatin and unspliced RNA 
+        # Filter slope or intercept > 0.2 in linear regression between chromatin and unspliced RNA 
+        if cu[1] < chromatin_slope_criteria && cu[2] < chromatin_intercept_criteria
             continue
         end
         
         # Filter if pseudotime has non-sigificant correlation with unspliced and spliced
-        if abs(tu[2]) < 0.2f0 || abs(ts[2]) < 0.2f0 || tu[2]/ts[2] < 0
+        if abs(tu[2]) < pseudotime_correlation_criteria || abs(ts[2]) < pseudotime_correlation_criteria || tu[2]/ts[2] < 0
             continue
         end
         
@@ -159,10 +261,10 @@ function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractV
             push!(cluster_kinetics, -1)
         end
     end
-    
+
     # Check the number of different kinetics in total clusters
     cluster_kinetics = Set(cluster_kinetics)
-    
+
     if length(cluster_kinetics) == 0
         return "fail"
     elseif length(cluster_kinetics) == 2
@@ -172,30 +274,4 @@ function define_gene_kinetic!(c::AbstractVector, u::AbstractVector, s::AbstractV
     elseif -1 in cluster_kinetics
         return "repression"
     end
-end
-
-function kinetics_embedding(data::JuloVeloObject; basis::AbstractString = "pca", min_dist::AbstractFloat = 0.5, n_neighbors::Int = 50)
-    if ~haskey(data.param, "kinetics")
-        X = data.X
-        Kinetics = data.param["velocity_model"]
-        kinetics = Kinetics(X)
-        data.param["kinetics"] = kinetics
-    else
-        kinetics = data.param["kinetics"]
-    end
-    
-    α = kinetics[1, :, :]'
-    β = kinetics[2, :, :]'
-    γ = kinetics[3, :, :]'
-    embedding = vcat(α, β, γ)
-
-    if basis == "pca"
-        M = MultivariateStats.fit(PCA, embedding; maxoutdim = 2)
-        kinetics_embedding = predict(M, embedding)'
-    elseif basis == "umap"
-        kinetics_embedding = umap(embedding; min_dist = min_dist, n_neighbors = n_neighbors)'
-    end
-    data.param["kinetics_embedding"] = kinetics_embedding
-
-    return data
 end

@@ -31,15 +31,14 @@ using TensorBoardLogger: TBLogger, tb_overwrite, set_step!, set_step_increment!
 
 export
     # Data
-    AbstractJuloVeloObject,
-    JuloVeloObject,
-    load_data,
+    write_adata,
+    read_adata,
+    merge_multiome_adata,
     reshape_data,
 
     # gene kinetics
-    define_gene_kinetic,
-    define_gene_kinetic!,
-    kinetics_embedding,
+    gene_kinetics_predetermination,
+    gene_kinetics_predetermination!,
 
     # layer
     SpatialDense,
@@ -56,7 +55,6 @@ export
     forward,
     eval_loss,
     eval_loss_report,
-    round4,
     report,
 
     # plot
@@ -69,19 +67,25 @@ export
     density_sampling!,
 
     # utils
-    filter_gene,
+    normalize,
+    filter_and_gene_kinetics_predetermination,
+    filter_genes,
     find_neighbor,
     calculate_neighbor_vector,
     to_device,
-    to_celldancer,
-    to_anndata,
-    write_adata,
+    round4,
+    to_cellDancer,
 
     # velocity
+    kinetics_equation,
     velocity_estimation,
-    kinetic_equation,
+    velocity_correlation,
+    correlation_coefficient,
+    get_neighbor_graph,
+    velocity_projection,
     compute_cell_velocity,
-    estimate_pseudotime
+    estimate_pseudotime,
+    kinetics_embedding
 
 
 include("data.jl")
