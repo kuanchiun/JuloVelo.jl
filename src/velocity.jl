@@ -20,9 +20,9 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     
     # Calculate kinetics
     kinetics = Kinetics(X)
-    α = Kinetics[1, :, :]
-    β = Kinetics[2, :, :]
-    γ = Kinetics[3, :, :]
+    α = kinetics[1, :, :]
+    β = kinetics[2, :, :]
+    γ = kinetics[3, :, :]
     
     # Calculate du and ds
     du, ds = kinetics_equation(u, s, kinetics)
@@ -46,7 +46,7 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     adata.uns["train_s"] = s
     
     # Info for velocity and kinetics
-    @info "Velocity saved in adata.uns[\"velocicy\"]"
+    @info "Velocity saved in adata.uns[\"velocity\"]"
     @info "kinetics saved in adata.uns[\"kinetics\"]"
 end
 
