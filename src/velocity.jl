@@ -119,7 +119,7 @@ function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_ma
 end
 
 function compute_cell_velocity(adata::Muon.AnnData; 
-        pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200, basis = "umap")
+        pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200, datapath::AbstractString = "", celltype = "clusters", basis = "umap")
     
     if pipeline_type == "JuloVelo"
         X = adata.uns["X"]
@@ -136,7 +136,7 @@ function compute_cell_velocity(adata::Muon.AnnData;
         adata.obsm["velocity_$basis"] = velocity_embedding
         
     elseif pipeline_type == "cellDancer"
-        to_cellDancer(adata)
+        to_cellDancer(adata; datapath = datapath, celltype = celltype, basis = basis)
         
         py"""
         import pandas as pd
