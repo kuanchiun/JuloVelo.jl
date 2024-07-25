@@ -20,6 +20,9 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     
     # Calculate kinetics
     kinetics = Kinetics(X)
+    α = Kinetics[1, :, :]
+    β = Kinetics[2, :, :]
+    γ = Kinetics[3, :, :]
     
     # Calculate du and ds
     du, ds = kinetics_equation(u, s, kinetics)
@@ -36,6 +39,9 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     # Write to anndata
     adata.uns["velocity"] = X̂
     adata.uns["kinetics"] = kinetics
+    adata.layers["alpha"] = α
+    adata.layers["beta"] = β
+    adata.layers["gamma"] = γ
     
     # Info for velocity and kinetics
     @info "Velocity saved in adata.uns[\"velocicy\"]"
