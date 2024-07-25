@@ -157,12 +157,12 @@ function compute_cell_velocity(adata::Muon.AnnData;
     return adata
 end
 
-function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8)
+function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8, datapath::AbstractString = "", celltype = "clusters", basis = "umap")
     if isnothing(n_path)
         throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
     end
     
-    to_cellDancer(adata)
+    to_cellDancer(adata; datapath = datapath, celltype = celltype, basis = basis)
     
     @info "Start estimate pseudotime, it may take a long time."
     
