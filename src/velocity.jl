@@ -42,6 +42,8 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     adata.uns["alpha"] = α
     adata.uns["beta"] = β
     adata.uns["gamma"] = γ
+    adata.uns["train_u"] = u
+    adata.uns["train_s"] = s
     
     # Info for velocity and kinetics
     @info "Velocity saved in adata.uns[\"velocicy\"]"
