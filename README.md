@@ -9,6 +9,12 @@
 A local RNA velocity model for cell differentiation inference based on Julia programming language.
 This project is currently WIP and highly inspired by [cellDancer](https://guangyuwanglab2021.github.io/cellDancer_website/).
 
+# Requirement
+- Julia >= 1.10
+
+- Python >= 3.7
+- cellDancer == 1.1.7
+
 # The minimum example of using JuloVelo
 
 Preprocessing
