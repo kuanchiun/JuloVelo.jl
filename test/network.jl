@@ -1,10 +1,6 @@
 @testset "network" begin
     ngenes, ncells = (50, 10)
 
-    c = rand(Float32, ngenes)
-    u = rand(Float32, ngenes)
-    s = rand(Float32, ngenes)
-
     batched_c = rand(Float32, ngenes, ncells)
     batched_u = rand(Float32, ngenes, ncells)
     batched_s = rand(Float32, ngenes, ncells)
