@@ -50,10 +50,14 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     @info "kinetics saved in adata.uns[\"kinetics\"]"
 end
 
-function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix)
+function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix; use_gpu = true)
     correlation_matrix = zeros32(size(spliced_matrix)[2], size(velocity_spliced_matrix)[2])
+    if use_gpu
+        spliced_matrix = spliced_matrix |> gpu
+        velocity_spliced_matrix = velocity_spliced_matrix |> gpu
+    end 
     @inbounds for i in axes(spliced_matrix, 2)
-        correlation_matrix[i, :] = correlation_coefficient(spliced_matrix, velocity_spliced_matrix, i)
+        correlation_matrix[i, :] = cpu(correlation_coefficient(spliced_matrix, velocity_spliced_matrix, i))
     end
     correlation_matrix[diagind(correlation_matrix)] .= 0
     
@@ -95,14 +99,14 @@ function get_neighbor_graph(embedding::AbstractMatrix, n_neighbors::Int)
     return graph
 end
 
-function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix)
+function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix; use_gpu = true)
     function replace_nan(v)
         return map(x -> isnan(x) ? zero(x) : x, v)
     end
     
     σ = 0.05
     ncells = size(embedding)[1]
-    correlation_coefficient = velocity_correlation(spliced_matrix, velocity_spliced_matrix)
+    correlation_coefficient = velocity_correlation(spliced_matrix, velocity_spliced_matrix; use_gpu = use_gpu)
     
     probablity_matrix = exp.(correlation_coefficient ./ σ) .* neighbor_graph
     probablity_matrix = probablity_matrix ./ sum(probablity_matrix, dims = 2)
@@ -126,42 +130,22 @@ function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_ma
     return velocity_embedding
 end
 
-function compute_cell_velocity(adata::Muon.AnnData; 
-        pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200, datapath::AbstractString = "", celltype = "clusters", basis = "umap")
-    
-    if pipeline_type == "JuloVelo"
-        X = adata.uns["X"]
-        embedding = adata.obsm["X_$basis"]
-        velocity = adata.uns["velocity"]
-        
-        spliced_matrix = X[2, :, :]'
-        velocity_spliced_matrix = velocity[2, :, :]'
-        velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
-    
-        neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
-        velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
-        
-        adata.obsm["velocity_$basis"] = velocity_embedding
-        
-    elseif pipeline_type == "cellDancer"
-        to_cellDancer(adata; datapath = datapath, celltype = celltype, basis = basis)
-        
-        py"""
-        import pandas as pd
-        import celldancer as cd
+function compute_cell_velocity(adata::Muon.AnnData;
+    n_neighbors::Int = 200, datapath::AbstractString = "", celltype::AbstractString = "clusters", basis::AbstractString = "umap", use_gpu::Bool = true)
 
-        JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
-        JuloVelo_df = cd.compute_cell_velocity(cellDancer_df=JuloVelo_df, projection_neighbor_choice='gene', expression_scale='power10', projection_neighbor_size=200, speed_up=(100,100))
-        
-        JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
-        """
-        
-        ncells = size(adata.uns["X"])[2]
-        JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
-        velocity_embedding = Matrix(JuloVelo_df[1:ncells, ["velocity1", "velocity2"]])
-        adata.obsm["velocity_$basis"] = velocity_embedding
-    end
-    
+    X = adata.uns["X"]
+    embedding = adata.obsm["X_$basis"]
+    velocity = adata.uns["velocity"]
+
+    spliced_matrix = X[2, :, :]'
+    velocity_spliced_matrix = velocity[2, :, :]'
+    velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
+
+    neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
+    velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding; use_gpu = use_gpu)
+
+    adata.obsm["velocity_$basis"] = velocity_embedding
+
     return adata
 end
 
@@ -234,3 +218,56 @@ function kinetics_embedding(adata::Muon.AnnData; basis::AbstractString = "pca", 
     
     return adata
 end
+
+"""
+deprecated
+"""
+#= function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix)
+    correlation_matrix = zeros32(size(spliced_matrix)[2], size(velocity_spliced_matrix)[2])
+    @inbounds for i in axes(spliced_matrix, 2)
+        correlation_matrix[i, :] = correlation_coefficient(spliced_matrix, velocity_spliced_matrix, i)
+    end
+    correlation_matrix[diagind(correlation_matrix)] .= 0
+    
+    return correlation_matrix
+end =#
+
+#= function compute_cell_velocity(adata::Muon.AnnData; 
+        pipeline_type::AbstractString = "JuloVelo", n_neighbors::Int = 200, datapath::AbstractString = "", celltype = "clusters", basis = "umap")
+    
+    if pipeline_type == "JuloVelo"
+        X = adata.uns["X"]
+        embedding = adata.obsm["X_$basis"]
+        velocity = adata.uns["velocity"]
+        
+        spliced_matrix = X[2, :, :]'
+        velocity_spliced_matrix = velocity[2, :, :]'
+        velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
+    
+        neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
+        velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding)
+        
+        adata.obsm["velocity_$basis"] = velocity_embedding
+        
+    elseif pipeline_type == "cellDancer"
+        to_cellDancer(adata; datapath = datapath, celltype = celltype, basis = basis)
+        
+        py"""
+        import pandas as pd
+        import celldancer as cd
+
+        JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
+        JuloVelo_df = cd.compute_cell_velocity(cellDancer_df=JuloVelo_df, projection_neighbor_choice='gene', expression_scale='power10', projection_neighbor_size=200, speed_up=(100,100))
+        
+        JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
+        """
+        
+        ncells = size(adata.uns["X"])[2]
+        JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
+        velocity_embedding = Matrix(JuloVelo_df[1:ncells, ["velocity1", "velocity2"]])
+        adata.obsm["velocity_$basis"] = velocity_embedding
+    end
+    
+    return adata
+end =#
+

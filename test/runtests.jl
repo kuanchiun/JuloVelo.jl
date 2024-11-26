@@ -2,9 +2,11 @@ using JuloVelo
 using Test
 using BSON
 using Flux
+using CUDA
 
 tests = [
-    "network"
+    "network",
+    "velocity"
 ]
 
 @testset "JuloVelo.jl" begin
