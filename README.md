@@ -38,6 +38,9 @@ sc.pl.umap(adata, color = "leiden")
 adata.uns["iroot"] = np.flatnonzero(adata.obs["leiden"] == '6')[0]
 sc.tl.dpt(adata)
 
+# Avoid PooledArray bug in Julia
+adata.var["highly_variable_genes"] = ["true" if item == "True" else "false" for item in adata.var["highly_variable_genes"]]
+
 # Write anndata for JuloVelo
 adata.write_h5ad("JuloVelo_pre.h5ad")
 ```
