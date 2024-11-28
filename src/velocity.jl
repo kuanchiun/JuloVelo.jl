@@ -198,6 +198,7 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
         pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
         adata.obs[!, "pseudotime"] = pseudotime
     
+    end
     #=
     elseif pipeline_type == "scvelo"
         write_adata(adata; filename = "temp", basis = basis)
