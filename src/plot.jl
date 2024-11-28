@@ -1,5 +1,5 @@
 function plot_kinetics_embedding(adata::Muon.AnnData;
-        label = "clusters",
+        label::AbstractString = "clusters",
         basis::AbstractString = "pca", 
         min_dist::AbstractFloat = 0.5, 
         n_neighbors::Int = 50, 

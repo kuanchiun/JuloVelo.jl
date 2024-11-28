@@ -1,11 +1,15 @@
-function write_adata(adata::Muon.AnnData; filename::AbstractString = "JuloVelo", basis = "umap")
+function write_adata(adata::Muon.AnnData; filename::AbstractString = "JuloVelo", basis::AbstractString = "umap")
     if haskey(adata.obsm, "velocity_$basis")
         if any(ismissing.(adata.obsm["velocity_$basis"]))
             adata.obsm["velocity_$basis"] = replace(adata.obsm["velocity_$basis"], missing => NaN)
         end
     end
     
-    writeh5ad("$filename.h5ad", adata)
+    if endswith(filename, "h5ad") | endswith(filename, "h5")
+        writeh5ad("$filename", adata)
+    else
+        writeh5ad("$filename.h5ad", adata)
+    end
 
     return nothing
 end

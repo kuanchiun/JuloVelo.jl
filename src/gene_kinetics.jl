@@ -4,7 +4,7 @@ function gene_kinetics_predetermination(adata::Muon.AnnData;
     root::AbstractString = "iroot", 
     cluster_correlation_criteria::AbstractFloat = 0.3f0, 
     pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
-    overwrite = false)
+    overwrite::Bool = false)
 
     # Check if genes are filtered
     if ~("bad_correlation_genes" in names(adata.var))
@@ -83,7 +83,7 @@ function gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muo
     pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
     chromatin_slope_criteria::AbstractFloat = 0.2f0, 
     chromatin_intercept_criteria::AbstractFloat = 0.2f0,
-    overwrite = false)
+    overwrite::Bool = false)
 
     # Check if genes are filtered
     if ~("bad_correlation_genes" in names(adata_rna.var))

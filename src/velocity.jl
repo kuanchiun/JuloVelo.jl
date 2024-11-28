@@ -50,7 +50,7 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     @info "kinetics saved in adata.uns[\"kinetics\"]"
 end
 
-function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix; use_gpu = true)
+function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix; use_gpu::Bool = true)
     correlation_matrix = zeros32(size(spliced_matrix)[2], size(velocity_spliced_matrix)[2])
     if use_gpu
         spliced_matrix = spliced_matrix |> gpu
@@ -99,7 +99,7 @@ function get_neighbor_graph(embedding::AbstractMatrix, n_neighbors::Int)
     return graph
 end
 
-function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix; use_gpu = true)
+function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix; use_gpu::Bool = true)
     function replace_nan(v)
         return map(x -> isnan(x) ? zero(x) : x, v)
     end
@@ -149,7 +149,15 @@ function compute_cell_velocity(adata::Muon.AnnData;
     return adata
 end
 
-function estimate_pseudotime(adata::Muon.AnnData; n_path::Union{Int, Nothing} = nothing, n_repeat::Int = 10, n_jobs::Int = 8, datapath::AbstractString = "", celltype = "clusters", basis = "umap", pipeline_type = "scvelo")
+function estimate_pseudotime(adata::Muon.AnnData; 
+    n_path::Union{Int, Nothing} = nothing, 
+    n_repeat::Int = 10, 
+    n_jobs::Int = 8, 
+    datapath::AbstractString = "", 
+    celltype::AbstractString = "clusters", 
+    basis::AbstractString = "umap", 
+    pipeline_type::AbstractString = "scvelo")
+
     if pipeline_type == "celldancer"
         if isnothing(n_path)
             throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
@@ -203,7 +211,7 @@ function estimate_pseudotime(adata::Muon.AnnData; n_path::Union{Int, Nothing} = 
         """
 
         ref_adata = read_adata("temp.h5ad")
-        adata.obs["velocity_pseudotime"] = ref_adata.obs["velocity_pseudotime"]
+        adata.obs[!, "velocity_pseudotime"] = ref_adata.obs[!, "velocity_pseudotime"]
     end
 
     return adata

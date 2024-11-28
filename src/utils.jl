@@ -1,4 +1,4 @@
-function normalize(adata::Muon.AnnData; use_raw = false)
+function normalize(adata::Muon.AnnData; use_raw::Bool = false)
     # Check if already normalize
     if haskey(adata.layers, "norm_u") || haskey(adata.layers, "norm_s")
         @info "Already normalized unspliced and spliced count"
@@ -43,7 +43,7 @@ function normalize(adata::Muon.AnnData; use_raw = false)
     return adata
 end
 
-function normalize(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; use_raw = false)
+function normalize(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; use_raw::Bool = false)
     # RNA normalize
     normalize(adata_rna; use_raw = use_raw)
     
@@ -204,7 +204,7 @@ end
 
 round4(x::AbstractFloat)::AbstractFloat = round(x, digits = 4)
 
-function to_cellDancer(adata::Muon.AnnData; datapath::AbstractString = "", celltype = "clusters", basis = "umap")
+function to_cellDancer(adata::Muon.AnnData; datapath::AbstractString = "", celltype::AbstractString = "clusters", basis::AbstractString = "umap")
     # Extract data
     X = adata.uns["X"]
     kinetics = adata.uns["kinetics"]
