@@ -149,47 +149,62 @@ function compute_cell_velocity(adata::Muon.AnnData;
     return adata
 end
 
-function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing; n_repeat::Int = 10, n_jobs::Int = 8, datapath::AbstractString = "", celltype = "clusters", basis = "umap")
-    if isnothing(n_path)
-        throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
-    end
+function estimate_pseudotime(adata::Muon.AnnData; n_path::Union{Int, Nothing} = nothing, n_repeat::Int = 10, n_jobs::Int = 8, datapath::AbstractString = "", celltype = "clusters", basis = "umap", pipeline_type = "scvelo")
+    if pipeline_type == "celldancer"
+        if isnothing(n_path)
+            throw(ArgumentError("empty n_path, please give the estimation number of differentiation flow."))
+        end
     
-    to_cellDancer(adata; datapath = datapath, celltype = celltype, basis = basis)
+        to_cellDancer(adata; datapath = datapath, celltype = celltype, basis = basis)
     
-    @info "Start estimate pseudotime, it may take a long time."
+        @info "Start estimate pseudotime, it may take a long time."
     
-    py"""
-    import pandas as pd
-    import celldancer as cd
-    import celldancer.utilities as cdutil
-    import random
+        py"""
+        import pandas as pd
+        import celldancer as cd
+        import celldancer.utilities as cdutil
+        import random
 
-    JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
+        JuloVelo_df = pd.read_csv("JuloVelo_result.csv")
 
     # set parameters
-    dt = 0.05
-    t_total = {dt:int(10/dt)}
-    n_repeats = $n_repeat
+        dt = 0.05
+        t_total = {dt:int(10/dt)}
+        n_repeats = $n_repeat
 
-    # estimate pseudotime
-    JuloVelo_df = cd.pseudo_time(cellDancer_df=JuloVelo_df,
-                               grid=(30,30),
-                               dt=dt,
-                               t_total=t_total[dt],
-                               n_repeats=n_repeats,
-                               speed_up=(100,100),
-                               n_paths = $n_path,
-                               psrng_seeds_diffusion=[i for i in range(n_repeats)],
-                               n_jobs=$n_jobs)
+        # estimate pseudotime
+        JuloVelo_df = cd.pseudo_time(cellDancer_df=JuloVelo_df,
+                                grid=(30,30),
+                                dt=dt,
+                                t_total=t_total[dt],
+                                n_repeats=n_repeats,
+                                speed_up=(100,100),
+                                n_paths = $n_path,
+                                psrng_seeds_diffusion=[i for i in range(n_repeats)],
+                                n_jobs=$n_jobs)
+        
+        JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
+        """
     
-    JuloVelo_df.to_csv("JuloVelo_result.csv", index = None)
-    """
-    
-    ncells = size(adata.uns["X"])[2]
-    JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
-    pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
-    adata.obs[!, "pseudotime"] = pseudotime
-    
+        ncells = size(adata.uns["X"])[2]
+        JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
+        pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
+        adata.obs[!, "pseudotime"] = pseudotime
+
+    elseif pipeline_type == "scvelo"
+        write_adata(adata; filename = "temp", basis = basis)
+
+        py"""
+        import scvelo as scv
+        adata = scv.read("temp.h5ad")
+        scv.tl.velocity_graph(adata)
+        scv.tl.velocity_pseudotime(adata)
+        adata.write("temp.h5ad")
+        """
+
+        adata = read_adata("temp.h5ad")
+    end
+
     return adata
 end
 
