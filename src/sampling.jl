@@ -67,7 +67,7 @@ function density_sampling!(X::AbstractMatrix, ncells::Int; sample_number::Int = 
     
     # Find the sparse point
     _, density_dists = knn(kdTree, X[:, idx_choice], 10)
-    density_kernel = gaussian_kernel.(density_dists; mu = 0, sigma = 0.5)
+    density_kernel = gaussian_kernel.(density_dists; mu = 0.0f0, sigma = 0.5f0)
     density_kernel = sum.(density_kernel)
     
     # Save sparse point region

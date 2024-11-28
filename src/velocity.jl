@@ -149,14 +149,13 @@ function compute_cell_velocity(adata::Muon.AnnData;
     return adata
 end
 
-function estimate_pseudotime(adata::Muon.AnnData; 
-    n_path::Union{Int, Nothing} = nothing, 
+function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing;
     n_repeat::Int = 10, 
     n_jobs::Int = 8, 
     datapath::AbstractString = "", 
     celltype::AbstractString = "clusters", 
     basis::AbstractString = "umap", 
-    pipeline_type::AbstractString = "scvelo")
+    pipeline_type::AbstractString = "celldancer")
 
     if pipeline_type == "celldancer"
         if isnothing(n_path)
@@ -198,7 +197,8 @@ function estimate_pseudotime(adata::Muon.AnnData;
         JuloVelo_df = CSV.read("JuloVelo_result.csv", DataFrame)
         pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
         adata.obs[!, "pseudotime"] = pseudotime
-
+    
+    #=
     elseif pipeline_type == "scvelo"
         write_adata(adata; filename = "temp", basis = basis)
 
@@ -224,9 +224,8 @@ function estimate_pseudotime(adata::Muon.AnnData;
         adata.var[!, "velocity_genes"] = ref_adata.var[!, "velocity_genes"]
         adata.layers["velocity"] = ref_adata.layers["velocity"]
         adata.layers["variance_velocity"] = ref_adata.layers["variance_velocity"]
-
-
     end
+    =#
 
     return adata
 end
