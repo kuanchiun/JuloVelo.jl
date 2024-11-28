@@ -212,6 +212,20 @@ function estimate_pseudotime(adata::Muon.AnnData;
 
         ref_adata = read_adata("temp.h5ad")
         adata.obs[!, "velocity_pseudotime"] = ref_adata.obs[!, "velocity_pseudotime"]
+        adata.obs[!, "velocity_self_transition"] = ref_adata.obs[!, "velocity_self_transition"]
+        adata.obs[!, "root_cells"] = ref_adata.obs[!, "root_cells"]
+        adata.obs[!, "end_points"] = ref_adata.obs[!, "end_points"]
+        adata.uns["velocity_params"] = ref_adata.uns["velocity_params"]
+        adata.uns["velocity_graph"] = ref_adata.uns["velocity_graph"]
+        adata.uns["velocity_graph_neg"] = ref_adata.uns["velocity_graph_neg"]
+        adata.var[!, "velocity_gamma"] = ref_adata.var[!, "velocity_gamma"]
+        adata.var[!, "velocity_qreg_ratio"] = ref_adata.var[!, "velocity_qreg_ratio"]
+        adata.var[!, "velocity_r2"] = ref_adata.var[!, "velocity_r2"]
+        adata.var[!, "velocity_genes"] = ref_adata.var[!, "velocity_genes"]
+        adata.layers["velocity"] = ref_adata.layers["velocity"]
+        adata.layers["variance_velocity"] = ref_adata.layers["variance_velocity"]
+
+
     end
 
     return adata
