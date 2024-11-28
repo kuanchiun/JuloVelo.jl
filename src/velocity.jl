@@ -202,7 +202,8 @@ function estimate_pseudotime(adata::Muon.AnnData; n_path::Union{Int, Nothing} = 
         adata.write("temp.h5ad")
         """
 
-        adata = read_adata("temp.h5ad")
+        ref_adata = read_adata("temp.h5ad")
+        adata.obs["velocity_pseudotime"] = ref_adata.obs["velocity_pseudotime"]
     end
 
     return adata
