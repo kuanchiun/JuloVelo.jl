@@ -155,7 +155,11 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
     datapath::AbstractString = "", 
     celltype::AbstractString = "clusters", 
     basis::AbstractString = "umap", 
-    pipeline_type::AbstractString = "celldancer")
+    pipeline_type::AbstractString = "scvelo")
+
+    if ~haskey(adata.obsm, "X_$basis") | ~haskey(adata.obsm, "velocity_$basis")
+        throw(ArgumentError("basis is not found in adata.obsm."))
+    end
 
     if pipeline_type == "celldancer"
         if isnothing(n_path)
@@ -198,15 +202,29 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
         pseudotime = JuloVelo_df[1:ncells, "pseudotime"]
         adata.obs[!, "pseudotime"] = pseudotime
     
-    end
-    #=
     elseif pipeline_type == "scvelo"
+        train_gene_index = adata.var[!, "train_genes"]
+
+        idx = 1
+        velocity = Array{Float32}(undef, size(adata.X)[1], 0)
+        for i in range(1, size(adata.X)[2])
+            if adata.var[!, "train_genes"][i]
+                velocity = hcat(velocity, adata.uns["velocity"][2, :, idx])
+                idx += 1
+            else
+                velocity = hcat(velocity, zeros32(size(adata.X)[1]))
+            end
+        end
+
+        adata.layers["velocity"] = velocity
+
         write_adata(adata; filename = "temp", basis = basis)
 
         py"""
         import scvelo as scv
         adata = scv.read("temp.h5ad")
         scv.tl.velocity_graph(adata)
+        adata.uns["velocity_params"]["embeddings"] = [$basis]
         scv.tl.velocity_pseudotime(adata)
         adata.write("temp.h5ad")
         """
@@ -219,14 +237,7 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
         adata.uns["velocity_params"] = ref_adata.uns["velocity_params"]
         adata.uns["velocity_graph"] = ref_adata.uns["velocity_graph"]
         adata.uns["velocity_graph_neg"] = ref_adata.uns["velocity_graph_neg"]
-        adata.var[!, "velocity_gamma"] = ref_adata.var[!, "velocity_gamma"]
-        adata.var[!, "velocity_qreg_ratio"] = ref_adata.var[!, "velocity_qreg_ratio"]
-        adata.var[!, "velocity_r2"] = ref_adata.var[!, "velocity_r2"]
-        adata.var[!, "velocity_genes"] = ref_adata.var[!, "velocity_genes"]
-        adata.layers["velocity"] = ref_adata.layers["velocity"]
-        adata.layers["variance_velocity"] = ref_adata.layers["variance_velocity"]
     end
-    =#
 
     return adata
 end
