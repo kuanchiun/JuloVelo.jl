@@ -68,14 +68,11 @@ filter_and_gene_kinetics_predetermination(adata; filter_criteria = 0.3)
 # Reshape data for model compatible
 reshape_data(adata)
 
-# Initialize velocity model
-Kinetics = build_velocity_model(adata)
-
 # Reduce sample size
 density_sampling(adata)
 
 # Training
-train(adata, Kinetics)
+Kinetics = train(adata)
 
 # Calculate velocity
 velocity_estimation(adata, Kinetics)

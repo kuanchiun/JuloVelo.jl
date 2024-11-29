@@ -1,8 +1,19 @@
-function kinetics_equation(u::AbstractArray, s::AbstractArray, kinetics::AbstractArray)
+function kinetics_equation_training(u, s, kinetics)
+    α = kinetics[1, :]
+    β = kinetics[2, :]
+    γ = kinetics[3, :]
+
+    du = α .* 2.0f0 .- β .* u
+    ds = β .* u .- γ .* s
+    
+    return du, ds
+end
+
+function kinetics_equation_inference(u, s, kinetics)
     α = kinetics[1, :, :]
     β = kinetics[2, :, :]
     γ = kinetics[3, :, :]
-
+    
     du = α .* 2.0f0 .- β .* u
     ds = β .* u .- γ .* s
 
@@ -25,7 +36,7 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     γ = kinetics[3, :, :]
     
     # Calculate du and ds
-    du, ds = kinetics_equation(u, s, kinetics)
+    du, ds = kinetics_equation_inference(u, s, kinetics)
     
     # Multiply du, ds by dt
     du = du .* dt

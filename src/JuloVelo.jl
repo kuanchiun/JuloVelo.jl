@@ -20,6 +20,7 @@ using NearestNeighbors
 using NNlib
 using Optimisers
 using Pickle
+using ProgressBars
 using PyCall
 using Plots
 using UMAP
@@ -49,7 +50,7 @@ export
     l2_penalty,
 
     # network
-    build_velocity_model,
+    assign_velocity_model,
     optimizer_setting,
     train,
     forward,
@@ -73,11 +74,13 @@ export
     find_neighbor,
     calculate_neighbor_vector,
     to_device,
+    gpu_functional,
     round4,
     to_cellDancer,
 
     # velocity
-    kinetics_equation,
+    kinetics_equation_training,
+    kinetics_equation_inference,
     velocity_estimation,
     velocity_correlation,
     correlation_coefficient,

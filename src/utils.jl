@@ -155,31 +155,33 @@ function filter_genes(adata::Muon.AnnData;
     return adata
 end
 
-function find_neighbor(X::AbstractArray, neighbor_number::Int, ngenes::Int)
-    # Initialize Array for Nearest Neighbor
-    NN = Array{Int32}(undef, size(X, 2), neighbor_number, ngenes)
-    # Calculate Nearest Neighbor for each cell in each gene
-    for i in 1:ngenes
-        kdTree = KDTree(X[:, :, i])
-        idxs, _ = knn(kdTree, X[:, :, i], neighbor_number + 1, true)
-        NN[:, :, i] = reduce(vcat, transpose.(idxs))[:, 2:end]
-    end
-
+function find_neighbor(X, neighbor_number)
+    kdTree = KDTree(X)
+    idxs, _ = knn(kdTree, X, neighbor_number + 1, true)
+    NN = reduce(vcat, transpose.(idxs))[:, 2:end]
     return NN
 end
 
-function calculate_neighbor_vector(X::AbstractArray, ngenes::Int, sample_number::Int; neighbor_number::Int = 30)
-    NN = find_neighbor(X, neighbor_number, ngenes)
+function calculate_neighbor_vector(X, sample_number, neighbor_number)
+    NN = find_neighbor(X, neighbor_number)
     repeat_idx = transpose(reduce(hcat, [repeat([i], neighbor_number) for i in 1:sample_number]))
-    
-    neighbor_vector = mapreduce(j -> mapreduce(i -> X[:, NN[i, :, j], j] - X[:, repeat_idx[i, :], j], hcat, axes(NN, 1)), hcat, axes(X, 3))
-    neighbor_vector = reshape(neighbor_vector, 2, neighbor_number, :)
+
+    neighbor_vector = mapreduce(i -> X[:, NN[i, :]] - X[:, repeat_idx[i, :]], hcat, axes(NN, 1))
+    neighbor_vector = reshape(neighbor_vector, 2, neighbor_number, sample_number)
     neighbor_vector = neighbor_vector .+ eps(Float32)
-    
+
     return neighbor_vector
 end
 
-function to_device(train_X::AbstractArray, Kinetics::Chain, train_neighbor_vector::AbstractArray; use_gpu::Bool = true)
+function to_device(X, Kinetics, neighbor_vector, device)
+    X = X |> device
+    Kinetics = Kinetics |> device
+    neighbor_vector = neighbor_vector |> device
+
+    return X, Kinetics, neighbor_vector
+end
+
+function gpu_functional(use_gpu)
     if use_gpu
         # Check CUDA is functional
         if CUDA.functional()
@@ -194,12 +196,8 @@ function to_device(train_X::AbstractArray, Kinetics::Chain, train_neighbor_vecto
         device = cpu
         @info "Training on cpu"
     end
-    
-    train_X = train_X |> device
-    Kinetics = Kinetics |> device
-    train_neighbor_vector = train_neighbor_vector |> device
-    
-    return train_X, Kinetics, train_neighbor_vector
+
+    return device
 end
 
 round4(x::AbstractFloat)::AbstractFloat = round(x, digits = 4)
