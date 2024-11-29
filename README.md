@@ -31,7 +31,9 @@ adata = scv.datasets.gastrulation_erythroid()
 
 # Preprocessing
 scv.pp.filter_and_normalize(adata, min_shared_counts = 20, n_top_genes = 2000)
-scv.pp.moments(adata, n_pcs = 50, n_neighbors = 50)
+sc.pp.pca(adata)
+sc.pp.neighbors(adata, n_pcs = 50, n_neighbors = 50)
+scv.pp.moments(adata, n_pcs = None, n_neighbors = None)
 
 # Clustering
 sc.tl.leiden(adata)
@@ -39,6 +41,7 @@ sc.pl.umap(adata, color = "leiden")
 
 # Calculate diffusion pseudotime
 adata.uns["iroot"] = np.flatnonzero(adata.obs["leiden"] == '6')[0]
+adata.uns["root"] = 6 #Base on root leiden cluster
 sc.tl.dpt(adata)
 
 # Avoid PooledArray bug in Julia
@@ -55,7 +58,6 @@ using Plots
 
 # Load anndata and change iroot to root cluster
 adata = read_adata("JuloVelo_pre.h5ad")
-adata.uns["iroot"] = 6
 
 # Normalize read count
 normalize(adata)

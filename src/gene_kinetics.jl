@@ -1,7 +1,7 @@
 function gene_kinetics_predetermination(adata::Muon.AnnData; 
     pseudotime::AbstractString = "dpt_pseudotime", 
     clusters::AbstractString = "leiden", 
-    root::AbstractString = "iroot", 
+    root::AbstractString = "root", 
     cluster_correlation_criteria::AbstractFloat = 0.3f0, 
     pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
     overwrite::Bool = false)
@@ -78,7 +78,7 @@ end
 function gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; 
     pseudotime::AbstractString = "dpt_pseudotime", 
     clusters::AbstractString = "leiden", 
-    root::AbstractString = "iroot", 
+    root::AbstractString = "root", 
     cluster_correlation_criteria::AbstractFloat = 0.3f0, 
     pseudotime_correlation_criteria::AbstractFloat = 0.2f0,
     chromatin_slope_criteria::AbstractFloat = 0.2f0, 

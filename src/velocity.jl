@@ -156,7 +156,7 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
     celltype::AbstractString = "clusters", 
     basis::AbstractString = "umap", 
     pipeline_type::AbstractString = "scvelo",
-    use_velocity_graph::Bool = false)
+    use_velocity_graph::Bool = true)
 
     if ~haskey(adata.obsm, "X_$basis") | ~haskey(adata.obsm, "velocity_$basis")
         throw(ArgumentError("basis is not found in adata.obsm."))
@@ -226,15 +226,13 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
         adata = scv.read("temp.h5ad")
         scv.tl.velocity_graph(adata)
         adata.uns["velocity_params"]["embeddings"] = [$basis]
-        scv.tl.velocity_pseudotime(adata, use_velocity_graph = $use_velocity_graph)
+        scv.tl.velocity_pseudotime(adata, use_velocity_graph = $use_velocity_graph, root_key = adata.uns["iroot"])
         adata.write("temp.h5ad")
         """
 
         ref_adata = read_adata("temp.h5ad")
         adata.obs[!, "velocity_pseudotime"] = ref_adata.obs[!, "velocity_pseudotime"]
         adata.obs[!, "velocity_self_transition"] = ref_adata.obs[!, "velocity_self_transition"]
-        adata.obs[!, "root_cells"] = ref_adata.obs[!, "root_cells"]
-        adata.obs[!, "end_points"] = ref_adata.obs[!, "end_points"]
         adata.uns["velocity_params"] = ref_adata.uns["velocity_params"]
         adata.uns["velocity_graph"] = ref_adata.uns["velocity_graph"]
         adata.uns["velocity_graph_neg"] = ref_adata.uns["velocity_graph_neg"]
