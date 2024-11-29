@@ -13,7 +13,10 @@ This project is currently WIP and highly inspired by [cellDancer](https://guangy
 - Julia >= 1.10
 
 - Python >= 3.7
+
 - cellDancer == 1.1.7
+
+- scvelo
 
 # The minimum example of using JuloVelo
 
@@ -73,13 +76,13 @@ density_sampling(adata)
 train(adata, Kinetics)
 
 # Calculate velocity
-velocity_estimation(adata, Kinetics);
+velocity_estimation(adata, Kinetics)
 
 # Compute cell velocity on embedding space
-compute_cell_velocity(adata);
+compute_cell_velocity(adata)
 
 # Restore pseudotime
-estimate_pseudotime(adata, 3, n_repeat = 3, celltype = "celltype");
+estimate_pseudotime(adata)
 
 # Write anndata
 write_adata(adata)
