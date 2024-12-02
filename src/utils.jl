@@ -75,7 +75,7 @@ end
 TODO: Add docsstrings
 """
 function filter_and_gene_kinetics_predetermination(adata::Muon.AnnData; 
-    filter_criteria::AbstractFloat = 0.5f0,
+    filter_criteria::AbstractFloat = 0.0f0,
     pseudotime::AbstractString = "dpt_pseudotime", 
     clusters::AbstractString = "leiden", 
     root::AbstractString = "iroot", 
@@ -102,7 +102,7 @@ end
 TODO: Add docsstrings
 """
 function filter_and_gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; 
-    filter_criteria::AbstractFloat = 0.5f0,
+    filter_criteria::AbstractFloat = 0.0f0,
     pseudotime::AbstractString = "dpt_pseudotime", 
     clusters::AbstractString = "leiden", 
     root::AbstractString = "iroot", 
@@ -129,7 +129,7 @@ end
 TODO: Add docsstrings
 """
 function filter_genes(adata::Muon.AnnData; 
-    filter_criteria::AbstractFloat = 0.5f0, overwrite::Bool = false)
+    filter_criteria::AbstractFloat = 0.0f0, overwrite::Bool = false)
     # Check if genes are already filtered
     if "bad_correlation_genes" in names(adata.var)
         if overwrite

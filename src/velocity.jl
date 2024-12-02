@@ -181,6 +181,10 @@ function compute_cell_velocity(adata::Muon.AnnData;
 
     adata.obsm["velocity_$basis"] = velocity_embedding
 
+    if use_gpu
+        CUDA.reclaim()
+    end
+
     return adata
 end
 
