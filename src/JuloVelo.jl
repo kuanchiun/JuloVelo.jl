@@ -55,8 +55,6 @@ export
     train,
     forward,
     eval_loss,
-    eval_loss_report,
-    report,
 
     # plot
     plot_kinetics_embedding,
@@ -77,6 +75,8 @@ export
     gpu_functional,
     round4,
     to_cellDancer,
+    save_model,
+    load_model,
 
     # velocity
     kinetics_equation_training,

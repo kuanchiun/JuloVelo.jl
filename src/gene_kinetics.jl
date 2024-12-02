@@ -1,3 +1,6 @@
+"""
+TODO: Add docsstrings
+"""
 function gene_kinetics_predetermination(adata::Muon.AnnData; 
     pseudotime::AbstractString = "dpt_pseudotime", 
     clusters::AbstractString = "leiden", 
@@ -75,6 +78,9 @@ function gene_kinetics_predetermination(adata::Muon.AnnData;
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; 
     pseudotime::AbstractString = "dpt_pseudotime", 
     clusters::AbstractString = "leiden", 
@@ -157,6 +163,9 @@ function gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muo
     return adata_rna
 end
 
+"""
+TODO: Add docsstrings
+"""
 function gene_kinetics_predetermination!(u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::AbstractString; 
     cluster_correlation_criteria::AbstractFloat = 0.3f0, 
     pseudotime_correlation_criteria::AbstractFloat = 0.2f0)
@@ -212,6 +221,9 @@ function gene_kinetics_predetermination!(u::AbstractVector, s::AbstractVector, p
     end
 end
 
+"""
+TODO: Add docsstrings
+"""
 function gene_kinetics_predetermination!(c::AbstractVector, u::AbstractVector, s::AbstractVector, pseudotime::AbstractVector, clusters::AbstractVector, root::AbstractString; 
     cluster_correlation_criteria::AbstractFloat = 0.3f0, 
     pseudotime_correlation_criteria::AbstractFloat = 0.2f0, 

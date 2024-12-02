@@ -33,4 +33,12 @@
         @test Induction isa Flux.Chain
         @test Repression isa Flux.Chain
     end
+
+    @testset "model" begin
+        layer = Dense(4 => 4)
+
+        save_model(layer; filename = "test.bson")
+        layer = load_model("test.bson")
+        @test layer isa Flux.Dense
+    end
 end

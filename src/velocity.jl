@@ -1,4 +1,7 @@
-function kinetics_equation_training(u, s, kinetics)
+"""
+TODO: Add docsstrings
+"""
+function kinetics_equation_training(u::AbstractArray, s::AbstractArray, kinetics::AbstractArray)
     α = kinetics[1, :]
     β = kinetics[2, :]
     γ = kinetics[3, :]
@@ -9,7 +12,10 @@ function kinetics_equation_training(u, s, kinetics)
     return du, ds
 end
 
-function kinetics_equation_inference(u, s, kinetics)
+"""
+TODO: Add docsstrings
+"""
+function kinetics_equation_inference(u::AbstractArray, s::AbstractArray, kinetics::AbstractArray)
     α = kinetics[1, :, :]
     β = kinetics[2, :, :]
     γ = kinetics[3, :, :]
@@ -20,6 +26,9 @@ function kinetics_equation_inference(u, s, kinetics)
     return du, ds
 end
 
+"""
+TODO: Add docsstrings
+"""
 function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractFloat = 0.5f0)
     # Extract data
     X = adata.uns["X"]
@@ -61,6 +70,9 @@ function velocity_estimation(adata::Muon.AnnData, Kinetics::Chain; dt::AbstractF
     @info "kinetics saved in adata.uns[\"kinetics\"]"
 end
 
+"""
+TODO: Add docsstrings
+"""
 function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix; use_gpu::Bool = true)
     correlation_matrix = zeros32(size(spliced_matrix)[2], size(velocity_spliced_matrix)[2])
     if use_gpu
@@ -75,6 +87,9 @@ function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_m
     return correlation_matrix
 end
 
+"""
+TODO: Add docsstrings
+"""
 function correlation_coefficient(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, i::Int)
     spliced_matrix = spliced_matrix'
     velocity_spliced_matrix = velocity_spliced_matrix'
@@ -95,6 +110,9 @@ function correlation_coefficient(spliced_matrix::AbstractMatrix, velocity_splice
     return correlation'
 end
 
+"""
+TODO: Add docsstrings
+"""
 function get_neighbor_graph(embedding::AbstractMatrix, n_neighbors::Int)
     graph = zeros32(size(embedding)[1], size(embedding)[1])
     
@@ -110,6 +128,9 @@ function get_neighbor_graph(embedding::AbstractMatrix, n_neighbors::Int)
     return graph
 end
 
+"""
+TODO: Add docsstrings
+"""
 function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix; use_gpu::Bool = true)
     function replace_nan(v)
         return map(x -> isnan(x) ? zero(x) : x, v)
@@ -141,6 +162,9 @@ function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_ma
     return velocity_embedding
 end
 
+"""
+TODO: Add docsstrings
+"""
 function compute_cell_velocity(adata::Muon.AnnData;
     n_neighbors::Int = 200, datapath::AbstractString = "", celltype::AbstractString = "clusters", basis::AbstractString = "umap", use_gpu::Bool = true)
 
@@ -160,6 +184,9 @@ function compute_cell_velocity(adata::Muon.AnnData;
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing;
     n_repeat::Int = 10, 
     n_jobs::Int = 8, 
@@ -252,6 +279,9 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function kinetics_embedding(adata::Muon.AnnData; basis::AbstractString = "pca", min_dist::AbstractFloat = 0.5, n_neighbors::Int = 50)
     if ~haskey(adata.uns, "kinetics")
         @info "Could not find \"kinetics\" in adata.uns"
@@ -279,7 +309,7 @@ function kinetics_embedding(adata::Muon.AnnData; basis::AbstractString = "pca", 
 end
 
 """
-deprecated
+Deprecated
 """
 #= function velocity_correlation(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix)
     correlation_matrix = zeros32(size(spliced_matrix)[2], size(velocity_spliced_matrix)[2])

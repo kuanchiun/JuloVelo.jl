@@ -1,7 +1,13 @@
+"""
+TODO: Add docsstrings
+"""
 function gaussian_kernel(X::AbstractArray; mu::AbstractFloat = 0.0f0, sigma::AbstractFloat = 1.0f0)
     return exp.(-(X .- mu) .^ 2.0f0 ./ (2.0f0 * sigma ^ 2.0f0)) ./ (2.0f0 * pi * sigma ^ 2.0f0) ^ 0.5f0
 end
 
+"""
+TODO: Add docsstrings
+"""
 function meshgrid(x::AbstractVector, y::AbstractVector)
     function meshgrid!(x, y)
         return [x, y]
@@ -9,7 +15,10 @@ function meshgrid(x::AbstractVector, y::AbstractVector)
     return vcat(meshgrid!.(x, y')'...)
 end
 
-function density_sampling(adata::Muon.AnnData; sample_number::Int = 2400, step = (30, 30), overwrite::Bool = false)
+"""
+TODO: Add docsstrings
+"""
+function density_sampling(adata::Muon.AnnData; sample_number::Int = 2400, step::Tuple{Int, Int} = (30, 30), overwrite::Bool = false)
     # Check if data is reshaped
     if ~haskey(adata.uns, "X")
         @info "Could not find \"X\" in adata.uns"
@@ -47,6 +56,9 @@ function density_sampling(adata::Muon.AnnData; sample_number::Int = 2400, step =
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function density_sampling!(X::AbstractMatrix, ncells::Int; sample_number::Int = 2400, step::Tuple{Int, Int} = (30, 30))
     # initial point on 2D space
     grs = []

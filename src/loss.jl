@@ -1,3 +1,6 @@
+"""
+TODO: Add docsstrings
+"""
 function cosine_similarity(x::AbstractArray, y::AbstractArray)
     dot = NNlib.batched_mul(permutedims(x, (2, 1, 3)), y)
     xnorm = sum(x .* x, dims = 1) .^ 0.5f0
@@ -8,6 +11,9 @@ function cosine_similarity(x::AbstractArray, y::AbstractArray)
     return cos_sim
 end
 
+"""
+TODO: Add docsstrings
+"""
 function cosine_loss(neighbor_vector::AbstractArray, dt_vector::AbstractArray, sample_number::Int, neighbor_number::Int)
     cos_sim = reshape(cosine_similarity(neighbor_vector, dt_vector), neighbor_number, sample_number)
     cos_loss = sum(1 .- maximum(cos_sim, dims = 1))
@@ -15,6 +21,9 @@ function cosine_loss(neighbor_vector::AbstractArray, dt_vector::AbstractArray, s
     return cos_loss
 end
 
+"""
+TODO: Add docsstrings
+"""
 function l2_penalty(weight::AbstractArray)
     return sum(abs2, weight)
 end

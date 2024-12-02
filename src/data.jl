@@ -1,3 +1,6 @@
+"""
+TODO: Add docsstrings
+"""
 function write_adata(adata::Muon.AnnData; filename::AbstractString = "JuloVelo", basis::AbstractString = "umap")
     if haskey(adata.obsm, "velocity_$basis")
         if any(ismissing.(adata.obsm["velocity_$basis"]))
@@ -14,10 +17,16 @@ function write_adata(adata::Muon.AnnData; filename::AbstractString = "JuloVelo",
     return nothing
 end
 
+"""
+TODO: Add docsstrings
+"""
 function read_adata(adatapath::AbstractString)
     return readh5ad(adatapath)
 end
 
+"""
+TODO: Add docsstrings
+"""
 function merge_multiome_adata(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData)
     c = adata_atac.layers["norm_c"]
     adata_rna.layers["norm_c"] = c
@@ -25,6 +34,9 @@ function merge_multiome_adata(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData)
     return adata_rna, adata_atac
 end
 
+"""
+TODO: Add docsstrings
+"""
 function reshape_data(adata::Muon.AnnData)
     # Check if gene are pre-determined kinetics
     if ~("train_genes" in names(adata.var))

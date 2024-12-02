@@ -1,19 +1,25 @@
 """
+TODO: Add docsstrings
+"""
+function create_bias_3D(weights::AbstractArray, bias::Bool, dims::Tuple)
+    bias ? fill!(similar(weights, dims), 0) : false
+end
+
+"""
+TODO: Add docsstrings
+"""
+function create_bias_3D(weights::AbstractArray, bias::AbstractArray, dims::Tuple)
+    size(bias) == dims || throw(DimensionMismatch("expect bias of size $(dims), got size $(size(bias))"))
+    convert(AbstractArray{eltype(weights)}, bias)
+end
+
+"""
     SpatialDense(in => out, depth, σ=identity; bias=true, init=glorot_uniform)
 
 Create a 3D fully connected layer, whose forward pass is given by:
 
     y = σ.(W * x .+ bias)
 """
-function create_bias_3D(weights::AbstractArray, bias::Bool, dims::Tuple)
-    bias ? fill!(similar(weights, dims), 0) : false
-end
-
-function create_bias_3D(weights::AbstractArray, bias::AbstractArray, dims::Tuple)
-    size(bias) == dims || throw(DimensionMismatch("expect bias of size $(dims), got size $(size(bias))"))
-    convert(AbstractArray{eltype(weights)}, bias)
-end
-
 struct SpatialDense{F, M<:AbstractArray, B}
     weight::M
     bias::B

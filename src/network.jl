@@ -1,3 +1,6 @@
+"""
+TODO: Add docsstrings
+"""
 function assign_velocity_model(gene_kinetics)
     modelpath = joinpath(pkgdir(JuloVelo), "models")
 
@@ -20,13 +23,14 @@ function assign_velocity_model(gene_kinetics)
     end
 end
 
+"""
+TODO: Add docsstrings
+"""
 function optimizer_setting(Kinetics::Chain, learning_rate::AbstractFloat, optimizer::AbstractString)
     if lowercase(optimizer) == "adam"
         rule = Optimisers.Adam(learning_rate)
-        #@info "Training with Adam Optimizer"
     elseif lowercase(optimizer) == "radam"
         rule = Optimisers.RAdam(learning_rate)
-        #@info "Training with RAdam Optimizer"
     else
         throw(ArgumentError("Optimizer only supports adam and radam"))
     end
@@ -36,6 +40,9 @@ function optimizer_setting(Kinetics::Chain, learning_rate::AbstractFloat, optimi
     return opt_state
 end
 
+"""
+TODO: Add docsstrings
+"""
 function train(adata;
     epochs = 100,
     neighbor_number = 30,
@@ -61,8 +68,18 @@ function train(adata;
     l3_bias = Array{Float32}(undef, 3, 1, 0)
 
     @info "Start training"
-    # loop
+
     device = gpu_functional(use_gpu)
+
+    if lowercase(optimizer) == "adam"
+        @info "Training with Adam Optimizer"
+    elseif lowercase(optimizer) == "radam"
+        @info "Training with RAdam Optimizer"
+    else
+        throw(ArgumentError("Optimizer only supports adam and radam"))
+    end
+
+    # loop
     for i in ProgressBar(1:train_gene_number)
         train_X_single = train_X[:, :, i]
         gene_kinetics_single = gene_kinetics[i]
@@ -102,6 +119,9 @@ function train(adata;
     return Kinetics
 end
 
+"""
+TODO: Add docsstrings
+"""
 function forward(X, Kinetics; dt = 0.5f0)
     u = X[1, :]
     s = X[2, :]
@@ -120,6 +140,9 @@ function forward(X, Kinetics; dt = 0.5f0)
     return dt_vector
 end
 
+"""
+TODO: Add docsstrings
+"""
 function eval_loss(X, Kinetics, neighbor_vector, sample_number, neighbor_number, λ; dt = 0.5f0)
     dt_vector = forward(X, Kinetics; dt = dt)
 
@@ -134,6 +157,10 @@ function eval_loss(X, Kinetics, neighbor_vector, sample_number, neighbor_number,
     return loss
 end
 
+"""
+Deprecated
+"""
+#=
 function eval_loss_report(X::AbstractArray, Kinetics::Chain, neighbor_vector::AbstractArray, train_gene_number::Int, sample_number::Int;
         neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
     
@@ -163,3 +190,4 @@ function report(epoch::Int, train_X::AbstractArray, Kinetics::Chain, train_neigh
     println("Epoch: $epoch  Train: $(train)")
     return train
 end
+=#

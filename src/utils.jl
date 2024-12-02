@@ -1,3 +1,6 @@
+"""
+TODO: Add docsstrings
+"""
 function normalize(adata::Muon.AnnData; use_raw::Bool = false)
     # Check if already normalize
     if haskey(adata.layers, "norm_u") || haskey(adata.layers, "norm_s")
@@ -43,6 +46,9 @@ function normalize(adata::Muon.AnnData; use_raw::Bool = false)
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function normalize(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; use_raw::Bool = false)
     # RNA normalize
     normalize(adata_rna; use_raw = use_raw)
@@ -65,6 +71,9 @@ function normalize(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; use_raw::B
     return adata_rna, adata_atac
 end
 
+"""
+TODO: Add docsstrings
+"""
 function filter_and_gene_kinetics_predetermination(adata::Muon.AnnData; 
     filter_criteria::AbstractFloat = 0.5f0,
     pseudotime::AbstractString = "dpt_pseudotime", 
@@ -89,6 +98,9 @@ function filter_and_gene_kinetics_predetermination(adata::Muon.AnnData;
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function filter_and_gene_kinetics_predetermination(adata_rna::Muon.AnnData, adata_atac::Muon.AnnData; 
     filter_criteria::AbstractFloat = 0.5f0,
     pseudotime::AbstractString = "dpt_pseudotime", 
@@ -113,6 +125,9 @@ function filter_and_gene_kinetics_predetermination(adata_rna::Muon.AnnData, adat
     return adata_rna, adata_atac
 end
 
+"""
+TODO: Add docsstrings
+"""
 function filter_genes(adata::Muon.AnnData; 
     filter_criteria::AbstractFloat = 0.5f0, overwrite::Bool = false)
     # Check if genes are already filtered
@@ -155,6 +170,9 @@ function filter_genes(adata::Muon.AnnData;
     return adata
 end
 
+"""
+TODO: Add docsstrings
+"""
 function find_neighbor(X, neighbor_number)
     kdTree = KDTree(X)
     idxs, _ = knn(kdTree, X, neighbor_number + 1, true)
@@ -162,6 +180,9 @@ function find_neighbor(X, neighbor_number)
     return NN
 end
 
+"""
+TODO: Add docsstrings
+"""
 function calculate_neighbor_vector(X, sample_number, neighbor_number)
     NN = find_neighbor(X, neighbor_number)
     repeat_idx = transpose(reduce(hcat, [repeat([i], neighbor_number) for i in 1:sample_number]))
@@ -173,6 +194,9 @@ function calculate_neighbor_vector(X, sample_number, neighbor_number)
     return neighbor_vector
 end
 
+"""
+TODO: Add docsstrings
+"""
 function to_device(X, Kinetics, neighbor_vector, device)
     X = X |> device
     Kinetics = Kinetics |> device
@@ -181,6 +205,9 @@ function to_device(X, Kinetics, neighbor_vector, device)
     return X, Kinetics, neighbor_vector
 end
 
+"""
+TODO: Add docsstrings
+"""
 function gpu_functional(use_gpu)
     if use_gpu
         # Check CUDA is functional
@@ -200,8 +227,14 @@ function gpu_functional(use_gpu)
     return device
 end
 
+"""
+TODO: Add docsstrings
+"""
 round4(x::AbstractFloat)::AbstractFloat = round(x, digits = 4)
 
+"""
+TODO: Add docsstrings
+"""
 function to_cellDancer(adata::Muon.AnnData; datapath::AbstractString = "", celltype::AbstractString = "clusters", basis::AbstractString = "umap")
     # Extract data
     X = adata.uns["X"]
@@ -290,4 +323,25 @@ function to_cellDancer(adata::Muon.AnnData; datapath::AbstractString = "", cellt
     CSV.write(joinpath(datapath, "JuloVelo_result.csv"), dataframe)
     
     return nothing
+end
+
+"""
+TODO: Add docsstrings
+"""
+function save_model(Kinetics; filename = "models.bson")
+    if endswith(filename, "bson")
+        BSON.@save(filename, Kinetics)
+    else
+        BSON.@save("$filename.bson", Kinetics)
+    end
+
+    return nothing
+end
+
+"""
+TODO: Add docsstrings
+"""
+function load_model(filename)
+    BSON.@load filename Kinetics
+    return Kinetics
 end
