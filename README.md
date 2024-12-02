@@ -14,9 +14,11 @@ This project is currently WIP and highly inspired by [cellDancer](https://guangy
 
 - Python >= 3.7
 
-- cellDancer == 1.1.7
-
 - scvelo
+
+# Optional
+
+- cellDancer == 1.1.7
 
 # The minimum example of using JuloVelo
 
