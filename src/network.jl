@@ -80,7 +80,7 @@ function train(adata;
     end
 
     # loop
-    for i in ProgressBar(1:train_gene_number)
+    @showprogress for i in 1:train_gene_number
         train_X_single = train_X[:, :, i]
         gene_kinetics_single = gene_kinetics[i]
         neighbor_vector_single = calculate_neighbor_vector(train_X_single, sample_number, neighbor_number)

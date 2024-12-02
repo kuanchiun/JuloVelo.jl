@@ -20,7 +20,7 @@ using NearestNeighbors
 using NNlib
 using Optimisers
 using Pickle
-using ProgressBars
+using ProgressMeter
 using PyCall
 using Plots
 using UMAP
