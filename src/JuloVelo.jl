@@ -29,6 +29,7 @@ using Zygote
 using Logging: with_logger
 using TensorBoardLogger: TBLogger, tb_overwrite, set_step!, set_step_increment!
 
+const PROJECT_PATH = dirname(@__DIR__)
 
 export
     # Data

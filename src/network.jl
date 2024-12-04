@@ -2,15 +2,11 @@
 TODO: Add docsstrings
 """
 function assign_velocity_model(gene_kinetics)
-    modelpath = joinpath(pkgdir(JuloVelo), "models")
+    #modelpath = joinpath(pkgdir(JuloVelo), "models")
 
-    BSON.@load joinpath(modelpath, "Circle.bson") circle
-    BSON.@load joinpath(modelpath, "Induction.bson") Induction
-    BSON.@load joinpath(modelpath, "Repression.bson") Repression
-
-    #BSON.@load "Circle.bson" circle
-    #BSON.@load "Induction.bson" Induction
-    #BSON.@load "Repression.bson" Repression
+    BSON.@load joinpath(joinpath(PROJECT_PATH, "models"), "Circle.bson") circle
+    BSON.@load joinpath(joinpath(PROJECT_PATH, "models"), "Induction.bson") Induction
+    BSON.@load joinpath(joinpath(PROJECT_PATH, "models"), "Repression.bson") Repression
 
     if gene_kinetics == "circle"
         return circle
@@ -156,38 +152,3 @@ function eval_loss(X, Kinetics, neighbor_vector, sample_number, neighbor_number,
 
     return loss
 end
-
-"""
-Deprecated
-"""
-#=
-function eval_loss_report(X::AbstractArray, Kinetics::Chain, neighbor_vector::AbstractArray, train_gene_number::Int, sample_number::Int;
-        neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
-    
-    # Predict du, ds
-    dt_vector = forward(X, Kinetics)
-    
-    # Calculate cosine similarity loss
-    cos_loss = cosine_loss(neighbor_vector, dt_vector, sample_number; neighbor_number = neighbor_number)
-    
-    # Calculate average cosine similarity
-    AvgMeanCos = 1 - (cos_loss / (train_gene_number * sample_number))
-    
-    # L2 penalty
-    penalty = (l2_penalty(Kinetics.layers.l1.weight) + 
-    l2_penalty(Kinetics.layers.l2.weight) + 
-    l2_penalty(Kinetics.layers.l3.weight)) * λ
-    
-    return (cos_loss = cos_loss |> round4, penalty = penalty |> round4, AvgMeanCos = AvgMeanCos |> round4)
-end
-
-function report(epoch::Int, train_X::AbstractArray, Kinetics::Chain, train_neighbor_vector::AbstractArray, train_gene_number::Int, sample_number::Int;
-        neighbor_number::Int = 30, λ::AbstractFloat = 0.004f0, dt::AbstractFloat = 0.5f0)
-    
-    train = eval_loss_report(train_X, Kinetics, train_neighbor_vector, train_gene_number, sample_number;
-        neighbor_number = neighbor_number, λ = λ, dt = dt)
-    
-    println("Epoch: $epoch  Train: $(train)")
-    return train
-end
-=#
