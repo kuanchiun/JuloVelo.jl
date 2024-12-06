@@ -173,7 +173,7 @@ end
 """
 TODO: Add docsstrings
 """
-function find_neighbor(X, neighbor_number)
+function find_neighbor(X::AbstractArray, neighbor_number::Int)
     kdTree = KDTree(X)
     idxs, _ = knn(kdTree, X, neighbor_number + 1, true)
     NN = reduce(vcat, transpose.(idxs))[:, 2:end]
@@ -183,7 +183,7 @@ end
 """
 TODO: Add docsstrings
 """
-function calculate_neighbor_vector(X, sample_number, neighbor_number)
+function calculate_neighbor_vector(X::AbstractArray, sample_number::Int, neighbor_number::Int)
     NN = find_neighbor(X, neighbor_number)
     repeat_idx = transpose(reduce(hcat, [repeat([i], neighbor_number) for i in 1:sample_number]))
 
@@ -197,7 +197,7 @@ end
 """
 TODO: Add docsstrings
 """
-function to_device(X, Kinetics, neighbor_vector, device)
+function to_device(X::AbstractArray, Kinetics::Chain, neighbor_vector::AbstractArray, device)
     X = X |> device
     Kinetics = Kinetics |> device
     neighbor_vector = neighbor_vector |> device
@@ -208,7 +208,7 @@ end
 """
 TODO: Add docsstrings
 """
-function gpu_functional(use_gpu)
+function gpu_functional(use_gpu::Bool)
     if use_gpu
         # Check CUDA is functional
         if CUDA.functional()
@@ -328,7 +328,7 @@ end
 """
 TODO: Add docsstrings
 """
-function save_model(Kinetics; filename = "models.bson")
+function save_model(Kinetics::Chain; filename::AbstractString = "models.bson")
     if endswith(filename, "bson")
         BSON.@save(filename, Kinetics)
     else
@@ -341,7 +341,7 @@ end
 """
 TODO: Add docsstrings
 """
-function load_model(filename)
+function load_model(filename::AbstractString)
     BSON.@load filename Kinetics
     return Kinetics
 end

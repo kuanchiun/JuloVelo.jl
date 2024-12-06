@@ -1,7 +1,7 @@
 """
 TODO: Add docsstrings
 """
-function assign_velocity_model(gene_kinetics)
+function assign_velocity_model(gene_kinetics::AbstractString)
     #modelpath = joinpath(pkgdir(JuloVelo), "models")
 
     BSON.@load joinpath(joinpath(PROJECT_PATH, "models"), "Circle.bson") circle
@@ -40,15 +40,13 @@ end
 TODO: Add docsstrings
 """
 function train(adata;
-    epochs = 100,
-    neighbor_number = 30,
-    learning_rate = 0.0001f0,
-    optimizer = "adam",
-    λ = 0.004f0,
-    dt = 0.5f0,
-    logger = true,
-    checktime = 5,
-    use_gpu = true)
+    epochs::Int = 100,
+    neighbor_number::Int = 30,
+    learning_rate::AbstractFloat = 0.0001f0,
+    optimizer::AbstractString = "adam",
+    λ::AbstractFloat = 0.004f0,
+    dt::AbstractFloat = 0.5f0,
+    use_gpu::Bool = true)
 
     # Extract data
     train_X = adata.uns["train_X"]
@@ -118,7 +116,7 @@ end
 """
 TODO: Add docsstrings
 """
-function forward(X, Kinetics; dt = 0.5f0)
+function forward(X::AbstractArray, Kinetics::Chain; dt::AbstractFloat = 0.5f0)
     u = X[1, :]
     s = X[2, :]
 
@@ -139,7 +137,7 @@ end
 """
 TODO: Add docsstrings
 """
-function eval_loss(X, Kinetics, neighbor_vector, sample_number, neighbor_number, λ; dt = 0.5f0)
+function eval_loss(X::AbstractArray, Kinetics::Chain, neighbor_vector::AbstractArray, sample_number::Int, neighbor_number::Int, λ::AbstractFloat; dt::AbstractFloat = 0.5f0)
     dt_vector = forward(X, Kinetics; dt = dt)
 
     cos_loss = cosine_loss(neighbor_vector, dt_vector, sample_number, neighbor_number)
