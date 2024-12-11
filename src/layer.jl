@@ -34,7 +34,8 @@ function SpatialDense((in, out)::Pair{<:Integer, <:Integer}, depth::Integer, σ 
     SpatialDense(init(out, in, depth), bias, σ)
 end
 
-Flux.@functor SpatialDense
+#Flux.@functor SpatialDense
+Flux.@layer SpatialDense
 
 function (l::SpatialDense)(x::AbstractArray)
     σ = NNlib.fast_act(l.σ, x)

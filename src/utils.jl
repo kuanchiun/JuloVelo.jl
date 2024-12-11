@@ -328,7 +328,7 @@ end
 """
 TODO: Add docsstrings
 """
-function save_model(Kinetics::Chain; filename::AbstractString = "models.bson")
+function save_model(Kinetics; filename::AbstractString = "models.bson")
     if endswith(filename, "bson")
         BSON.@save(filename, Kinetics)
     else
