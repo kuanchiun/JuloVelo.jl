@@ -131,7 +131,7 @@ end
 """
 TODO: Add docsstrings
 """
-function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix; use_gpu::Bool = true)
+function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_matrix::AbstractMatrix, neighbor_graph::AbstractMatrix, embedding::AbstractMatrix; use_gpu::Bool = true, dimension::AbstractString = "2d")
     function replace_nan(v)
         return map(x -> isnan(x) ? zero(x) : x, v)
     end
@@ -143,24 +143,36 @@ function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_ma
     probablity_matrix = exp.(correlation_coefficient ./ σ) .* neighbor_graph
     probablity_matrix = probablity_matrix ./ sum(probablity_matrix, dims = 2)
     
-    #velocity_field = zeros32(ncells, ncells, 2)
-    velocity_field = zeros32(ncells, ncells, 3)
-    for i in axes(embedding', 2)
-        temp = embedding' .- embedding'[:, i]
-        velocity_field[i, :, 1] = temp[1, :]'
-        velocity_field[i, :, 2] = temp[2, :]'
-        velocity_field[i, :, 3] = temp[3, :]'
+    if dimension == "2d"
+        velocity_field = zeros32(ncells, ncells, 2)
+        for i in axes(embedding', 2)
+            temp = embedding' .- embedding'[:, i]
+            velocity_field[i, :, 1] = temp[1, :]'
+            velocity_field[i, :, 2] = temp[2, :]'
+        end
+        uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2) .^ 0.5
+    elseif dimension == "3d"
+        velocity_field = zeros32(ncells, ncells, 3)
+        for i in axes(embedding', 2)
+            temp = embedding' .- embedding'[:, i]
+            velocity_field[i, :, 1] = temp[1, :]'
+            velocity_field[i, :, 2] = temp[2, :]'
+            velocity_field[i, :, 3] = temp[3, :]'
+        end
+        uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2 + velocity_field[:, :, 3] .^ 2) .^ 0.5
     end
     
-    #uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2) .^ 0.5
-    uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2 + velocity_field[:, :, 3] .^ 2) .^ 0.5
     velocity_field = velocity_field ./ uni_scale
     velocity_field = replace_nan(velocity_field)
     
     velocity_embedding = sum(velocity_field .* probablity_matrix, dims = 2)
     velocity_embedding = velocity_embedding .- sum(neighbor_graph .* velocity_field, dims = 2) ./ sum(neighbor_graph, dims = 2)
     
-    velocity_embedding = reshape(velocity_embedding, ncells, 3)
+    if dimension == "2d"
+        velocity_embedding = reshape(velocity_embedding, ncells, 2)
+    elseif dimension == "3d"
+        velocity_embedding = reshape(velocity_embedding, ncells, 3)
+    end
     
     return velocity_embedding
 end
@@ -169,7 +181,7 @@ end
 TODO: Add docsstrings
 """
 function compute_cell_velocity(adata::Muon.AnnData;
-    n_neighbors::Int = 200, datapath::AbstractString = "", celltype::AbstractString = "clusters", basis::AbstractString = "umap", use_gpu::Bool = true)
+    n_neighbors::Int = 200, datapath::AbstractString = "", celltype::AbstractString = "clusters", basis::AbstractString = "umap", use_gpu::Bool = true, dimension::AbstractString = "2d")
 
     X = adata.uns["X"]
     embedding = adata.obsm["X_$basis"]
@@ -180,7 +192,7 @@ function compute_cell_velocity(adata::Muon.AnnData;
     velocity_spliced_matrix = sqrt.(abs.(velocity_spliced_matrix) .+ 1) ./ sign.(velocity_spliced_matrix)
 
     neighbor_graph = get_neighbor_graph(embedding, n_neighbors)
-    velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding; use_gpu = use_gpu)
+    velocity_embedding = velocity_projection(spliced_matrix, velocity_spliced_matrix, neighbor_graph, embedding; use_gpu = use_gpu, dimension = dimension)
 
     adata.obsm["velocity_$basis"] = velocity_embedding
 
