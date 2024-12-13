@@ -143,21 +143,24 @@ function velocity_projection(spliced_matrix::AbstractMatrix, velocity_spliced_ma
     probablity_matrix = exp.(correlation_coefficient ./ σ) .* neighbor_graph
     probablity_matrix = probablity_matrix ./ sum(probablity_matrix, dims = 2)
     
-    velocity_field = zeros32(ncells, ncells, 2)
+    #velocity_field = zeros32(ncells, ncells, 2)
+    velocity_field = zeros32(ncells, ncells, 3)
     for i in axes(embedding', 2)
         temp = embedding' .- embedding'[:, i]
         velocity_field[i, :, 1] = temp[1, :]'
         velocity_field[i, :, 2] = temp[2, :]'
+        velocity_field[i, :, 3] = temp[3, :]'
     end
     
-    uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2) .^ 0.5
+    #uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2) .^ 0.5
+    uni_scale = (velocity_field[:, :, 1] .^ 2 + velocity_field[:, :, 2] .^ 2 + velocity_field[:, :, 3] .^ 2) .^ 0.5
     velocity_field = velocity_field ./ uni_scale
     velocity_field = replace_nan(velocity_field)
     
     velocity_embedding = sum(velocity_field .* probablity_matrix, dims = 2)
     velocity_embedding = velocity_embedding .- sum(neighbor_graph .* velocity_field, dims = 2) ./ sum(neighbor_graph, dims = 2)
     
-    velocity_embedding = reshape(velocity_embedding, ncells, 2)
+    velocity_embedding = reshape(velocity_embedding, ncells, 3)
     
     return velocity_embedding
 end
