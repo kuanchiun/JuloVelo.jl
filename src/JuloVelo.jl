@@ -7,6 +7,7 @@ using Statistics
 using Random
 
 using BSON
+using CategoricalArrays
 using CSV
 using CUDA
 using CurveFit
@@ -23,6 +24,8 @@ using Pickle
 using ProgressMeter
 using PyCall
 using Plots
+using SparseArrays
+using StructArrays
 using UMAP
 using Zygote
 

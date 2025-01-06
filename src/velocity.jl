@@ -274,25 +274,61 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
             end
         end
 
-        adata.layers["velocity"] = velocity
-
-        write_adata(adata; filename = "temp", basis = basis)
+        root_key = adata.uns["iroot"]
+        X = adata.X
+        Ms = Matrix(adata.layers["Ms"])
+        Mu = Matrix(adata.layers["Mu"])
+        basis = Matrix(adata.obsm["X_umap"])
+        neighbors = adata.uns["neighbors"]
+        distances = Matrix(adata.obsp["distances"])
+        connectivities = Matrix(adata.obsp["connectivities"])
 
         py"""
         import scvelo as scv
-        adata = scv.read("temp.h5ad")
-        scv.tl.velocity_graph(adata)
-        adata.uns["velocity_params"]["embeddings"] = [$basis]
-        scv.tl.velocity_pseudotime(adata, use_velocity_graph = $use_velocity_graph, root_key = adata.uns["iroot"])
-        adata.write("temp.h5ad")
+        import anndata as ad
+        import numpy as np
+        import scipy
+
+        def estimate_pseudotime(X, root_key, velocity, Mu, Ms, basis, neighbors, distances, connectivities):
+            temp_adata = ad.AnnData(np.array(X))
+            temp_adata.uns["iroot"] = root_key
+            temp_adata.layers["velocity"] = np.array(velocity)
+            temp_adata.layers["Mu"] = np.array(Mu)
+            temp_adata.layers["Ms"] = np.array(Ms)
+            temp_adata.obsm["X_umap"] = np.array(basis)
+            temp_adata.uns["neighbors"] = neighbors
+            temp_adata.obsp["distances"] = scipy.sparse.csc_matrix(distances)
+            temp_adata.obsp["connectivities"] = scipy.sparse.csc_matrix(connectivities)
+            
+            scv.tl.velocity_graph(temp_adata, n_jobs = $n_jobs)
+            temp_adata.uns["velocity_params"]["embeddings"] = ["umap"]
+            scv.tl.velocity_pseudotime(temp_adata, use_velocity_graph = $use_velocity_graph, root_key = temp_adata.uns["iroot"])
+
+            velocity_pseudotime = list(temp_adata.obs["velocity_pseudotime"])
+            velocity_self_transition = list(temp_adata.obs["velocity_self_transition"])
+            velocity_params = temp_adata.uns["velocity_params"]
+            velocity_graph = temp_adata.uns["velocity_graph"]
+            velocity_graph_neg = temp_adata.uns["velocity_graph_neg"]
+
+            velocity_dictionary = {
+                "velocity_pseudotime":velocity_pseudotime,
+                "velocity_self_transition":velocity_self_transition,
+                "velocity_params":velocity_params,
+                "velocity_graph":velocity_graph,
+                "velocity_graph_neg":velocity_graph_neg
+            }
+
+            return velocity_dictionary
         """
 
-        ref_adata = read_adata("temp.h5ad")
-        adata.obs[!, "velocity_pseudotime"] = ref_adata.obs[!, "velocity_pseudotime"]
-        adata.obs[!, "velocity_self_transition"] = ref_adata.obs[!, "velocity_self_transition"]
-        adata.uns["velocity_params"] = ref_adata.uns["velocity_params"]
-        adata.uns["velocity_graph"] = ref_adata.uns["velocity_graph"]
-        adata.uns["velocity_graph_neg"] = ref_adata.uns["velocity_graph_neg"]
+        velocity_dictionary = py"estimate_pseudotime"(X, root_key, velocity, Mu, Ms, basis, neighbors, distances, connectivities)
+
+        adata.layers["velocity"] = velocity
+        adata.obs[!, "velocity_pseudotime"] = velocity_dictionary["velocity_pseudotime"]
+        adata.obs[!, "velocity_self_transition"] = velocity_dictionary["velocity_self_transition"]
+        adata.uns["velocity_params"] = Dict{String, Union{AbstractString, Number, DataFrame, Dict, CategoricalArray{<:AbstractString}, CategoricalArray{<:Number}, AbstractArray{<:Union{Missing, Integer}}, AbstractArray{<:AbstractString}, AbstractArray{<:Number}, StructArray}}(py"$velocity_dictionary['velocity_params']")
+        adata.uns["velocity_graph"] = sparse(velocity_dictionary["velocity_graph"].A)
+        adata.uns["velocity_graph_neg"] = sparse(velocity_dictionary["velocity_graph_neg"].A)
     end
 
     return adata
