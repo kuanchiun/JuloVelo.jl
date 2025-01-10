@@ -300,7 +300,7 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
             temp_adata.obsp["distances"] = scipy.sparse.csc_matrix(distances)
             temp_adata.obsp["connectivities"] = scipy.sparse.csc_matrix(connectivities)
             
-            scv.tl.velocity_graph(temp_adata, n_jobs = $n_jobs)
+            scv.tl.velocity_graph(temp_adata, n_jobs = $n_jobs, n_neighbors = 15)
             temp_adata.uns["velocity_params"]["embeddings"] = ["umap"]
             scv.tl.velocity_pseudotime(temp_adata, use_velocity_graph = $use_velocity_graph, root_key = temp_adata.uns["iroot"])
 
