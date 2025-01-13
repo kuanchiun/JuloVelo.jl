@@ -206,6 +206,121 @@ end
 """
 TODO: Add docsstrings
 """
+function estimate_pseudotime(adata::Muon.AnnData;
+    n_neighbors::Int = 15, 
+    n_jobs::Int = 8, 
+    basis::AbstractString = "umap", 
+    use_velocity_graph::Bool = true)
+
+    if ~haskey(adata.obsm, "X_$basis") | ~haskey(adata.obsm, "velocity_$basis")
+        throw(ArgumentError("basis is not found in adata.obsm."))
+    end
+
+    train_gene_index = adata.var[!, "train_genes"]
+
+    idx = 1
+    velocity = Array{Float32}(undef, size(adata.X)[1], 0)
+    for i in range(1, size(adata.X)[2])
+        if adata.var[!, "train_genes"][i]
+            velocity = hcat(velocity, adata.uns["velocity"][2, :, idx])
+            idx += 1
+        else
+            velocity = hcat(velocity, zeros32(size(adata.X)[1]))
+        end
+    end
+
+    root_key = adata.uns["iroot"]
+    X = adata.X
+    Ms = Matrix(adata.layers["Ms"])
+    Mu = Matrix(adata.layers["Mu"])
+    embedding = Matrix(adata.obsm["X_$basis"])
+    neighbors = adata.uns["neighbors"]
+    distances = Matrix(adata.obsp["distances"])
+    connectivities = Matrix(adata.obsp["connectivities"])
+
+    py"""
+    import scvelo as scv
+    import anndata as ad
+    import numpy as np
+    import scipy
+
+    def estimate_pseudotime(X, root_key, velocity, Mu, Ms, embedding, neighbors, distances, connectivities, basis):
+        temp_adata = ad.AnnData(np.array(X))
+        temp_adata.uns["iroot"] = root_key
+        temp_adata.layers["velocity"] = np.array(velocity)
+        temp_adata.layers["Mu"] = np.array(Mu)
+        temp_adata.layers["Ms"] = np.array(Ms)
+        temp_adata.obsm[f"X_{str(basis)}"] = np.array(embedding)
+        temp_adata.uns["neighbors"] = neighbors
+        temp_adata.obsp["distances"] = scipy.sparse.csr_matrix(distances)
+        temp_adata.obsp["connectivities"] = scipy.sparse.csr_matrix(connectivities)
+        
+        scv.tl.velocity_graph(temp_adata, n_jobs = $n_jobs, n_neighbors = $n_neighbors)
+        temp_adata.uns["velocity_params"]["embeddings"] = [str(basis)]
+        scv.tl.velocity_pseudotime(temp_adata, use_velocity_graph = $use_velocity_graph, root_key = temp_adata.uns["iroot"])
+
+        velocity_pseudotime = list(temp_adata.obs["velocity_pseudotime"])
+        velocity_self_transition = list(temp_adata.obs["velocity_self_transition"])
+        velocity_params = temp_adata.uns["velocity_params"]
+        velocity_graph = temp_adata.uns["velocity_graph"]
+        velocity_graph_neg = temp_adata.uns["velocity_graph_neg"]
+
+        velocity_dictionary = {
+            "velocity_pseudotime":velocity_pseudotime,
+            "velocity_self_transition":velocity_self_transition,
+            "velocity_params":velocity_params,
+            "velocity_graph":velocity_graph,
+            "velocity_graph_neg":velocity_graph_neg
+        }
+
+        return velocity_dictionary
+    """
+
+    velocity_dictionary = py"estimate_pseudotime"(X, root_key, velocity, Mu, Ms, embedding, neighbors, distances, connectivities, basis)
+
+    adata.layers["velocity"] = velocity
+    adata.obs[!, "velocity_pseudotime"] = velocity_dictionary["velocity_pseudotime"]
+    adata.obs[!, "velocity_self_transition"] = velocity_dictionary["velocity_self_transition"]
+    adata.uns["velocity_params"] = Dict{String, Union{AbstractString, Number, DataFrame, Dict, CategoricalArray{<:AbstractString}, CategoricalArray{<:Number}, AbstractArray{<:Union{Missing, Integer}}, AbstractArray{<:AbstractString}, AbstractArray{<:Number}, StructArray}}(py"$velocity_dictionary['velocity_params']")
+    adata.uns["velocity_graph"] = sparse(velocity_dictionary["velocity_graph"].A)
+    adata.uns["velocity_graph_neg"] = sparse(velocity_dictionary["velocity_graph_neg"].A)
+
+    return adata
+end
+
+"""
+TODO: Add docsstrings
+"""
+function kinetics_embedding(adata::Muon.AnnData; basis::AbstractString = "pca", min_dist::AbstractFloat = 0.5, n_neighbors::Int = 50)
+    if ~haskey(adata.uns, "kinetics")
+        @info "Could not find \"kinetics\" in adata.uns"
+        @info "Please run velocity_estimation() first"
+        return adata
+    else
+        kinetics = adata.uns["kinetics"]
+    end
+
+    α = kinetics[1, :, :]'
+    β = kinetics[2, :, :]'
+    γ = kinetics[3, :, :]'
+    embedding = vcat(α, β, γ)
+    
+    if basis == "pca"
+        M = MultivariateStats.fit(PCA, embedding; maxoutdim = 2)
+        kinetics_embedding = predict(M, embedding)'
+    elseif basis == "umap"
+        kinetics_embedding = umap(embedding; min_dist = min_dist, n_neighbors = n_neighbors)'
+    end
+    
+    adata.obsm["kinetics_$basis"] = kinetics_embedding
+    
+    return adata
+end
+
+"""
+TODO: Deprecated
+"""
+#=
 function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = nothing;
     n_repeat::Int = 10, 
     n_jobs::Int = 8, 
@@ -297,8 +412,8 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
             temp_adata.layers["Ms"] = np.array(Ms)
             temp_adata.obsm["X_umap"] = np.array(basis)
             temp_adata.uns["neighbors"] = neighbors
-            temp_adata.obsp["distances"] = scipy.sparse.csc_matrix(distances)
-            temp_adata.obsp["connectivities"] = scipy.sparse.csc_matrix(connectivities)
+            temp_adata.obsp["distances"] = scipy.sparse.csr_matrix(distances)
+            temp_adata.obsp["connectivities"] = scipy.sparse.csr_matrix(connectivities)
             
             scv.tl.velocity_graph(temp_adata, n_jobs = $n_jobs, n_neighbors = 15)
             temp_adata.uns["velocity_params"]["embeddings"] = ["umap"]
@@ -333,33 +448,4 @@ function estimate_pseudotime(adata::Muon.AnnData, n_path::Union{Int, Nothing} = 
 
     return adata
 end
-
-"""
-TODO: Add docsstrings
-"""
-function kinetics_embedding(adata::Muon.AnnData; basis::AbstractString = "pca", min_dist::AbstractFloat = 0.5, n_neighbors::Int = 50)
-    if ~haskey(adata.uns, "kinetics")
-        @info "Could not find \"kinetics\" in adata.uns"
-        @info "Please run velocity_estimation() first"
-        return adata
-    else
-        kinetics = adata.uns["kinetics"]
-    end
-
-    α = kinetics[1, :, :]'
-    β = kinetics[2, :, :]'
-    γ = kinetics[3, :, :]'
-    embedding = vcat(α, β, γ)
-    
-    if basis == "pca"
-        M = MultivariateStats.fit(PCA, embedding; maxoutdim = 2)
-        kinetics_embedding = predict(M, embedding)'
-    elseif basis == "umap"
-        kinetics_embedding = umap(embedding; min_dist = min_dist, n_neighbors = n_neighbors)'
-    end
-    
-    adata.obsm["kinetics_$basis"] = kinetics_embedding
-    
-    return adata
-end
-
+=#
