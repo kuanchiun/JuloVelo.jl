@@ -65,7 +65,7 @@ adata = read_adata("JuloVelo_pre.h5ad")
 normalize(adata)
 
 # Filter genes and pre-determine gene kinetics
-filter_and_gene_kinetics_predetermination(adata; filter_criteria = 0.3)
+filter_and_gene_kinetics_predetermination(adata)
 
 # Reshape data for model compatible
 reshape_data(adata)
